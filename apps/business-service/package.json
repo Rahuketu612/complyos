@@ -11,7 +11,7 @@
     "start:dev": "nest start --watch",
     "lint": "eslint \"src/**/*.ts\"",
     "prisma:generate": "prisma generate --schema ../../packages/database/schema.prisma",
-    "postinstall": "npm run prisma:generate"
+    "postinstall": "prisma generate --schema ../../packages/database/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

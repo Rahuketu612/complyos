@@ -2,13 +2,15 @@
   "name": "@complyos/vendor-service",
   "version": "1.0.0",
   "description": "COMPLYOS Vendor Intelligence Service",
-  "engines": { "node": ">=20 <21" },
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "prisma:generate": "prisma generate --schema ../../packages/database/schema.prisma",
-    "postinstall": "npm run prisma:generate"
+    "postinstall": "prisma generate --schema ../../packages/database/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
