@@ -2,6 +2,12 @@
 
 Enterprise-grade AI-powered compliance intelligence platform for Indian businesses.
 
+## Demo Credentials
+
+For local testing: `demo@complyos.dev` / `DemoPassword123!`
+
+See [SETUP.md](./SETUP.md) for seeding instructions.
+
 ## Overview
 
 COMPLYOS aggregates data from Indian statutory portals (GST, IT, EPFO, ESIC, TRACES) to create a unified compliance identity. Features AI assistants for notice analysis, vendor risk monitoring, and predictive compliance alerts.

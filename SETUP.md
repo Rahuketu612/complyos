@@ -1,5 +1,22 @@
 # COMPLYOS - Developer Setup Guide
 
+## Demo Credentials (Development Only)
+
+For local testing without registering a new organization:
+
+| Field | Value |
+|-------|-------|
+| Email | `demo@complyos.dev` |
+| Password | `DemoPassword123!` |
+
+To seed demo data:
+
+```bash
+cd apps/auth-service
+npx prisma migrate dev --name init  # Only if tables don't exist
+npm run seed:dev
+```
+
 ## Prerequisites
 
 - **Node.js 20 LTS** (required - not compatible with Node 22+)
