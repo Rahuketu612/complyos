@@ -23,7 +23,8 @@ make verify      # Run E2E tests
 ```bash
 cd apps/auth-service
 npm install
-npx prisma migrate dev --name init
+# Use prisma@5.22.0 explicitly - Prisma 7 has breaking changes
+npx prisma@5.22.0 migrate dev --name init
 npm run seed:dev
 cd ../api-gateway
 npm run start:dev
