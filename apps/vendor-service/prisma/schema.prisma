@@ -1,0 +1,1085 @@
+// COMPLYOS Database Schema
+// PostgreSQL with Prisma ORM
+// Version: 1.0.0
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TENANT & ORGANIZATION MANAGEMENT
+// ============================================
+
+model Tenant {
+  id                String   @id @default(uuid())
+  name              String
+  slug              String   @unique
+  logoUrl           String?
+  address           String?
+  city              String?
+  state             String?
+  pincode           String?
+  
+  // Subscription
+  subscriptionPlan  String   @default("free") // free, starter, professional, enterprise
+  subscriptionStatus String  @default("active")
+  trialEndsAt       DateTime?
+  
+  // Features
+  maxUsers          Int      @default(5)
+  maxBusinesses     Int      @default(10)
+  enableAi         Boolean  @default(true)
+  enableAuditor    Boolean  @default(false)
+  
+  // Security
+  mfaEnabled        Boolean  @default(false)
+  ssoEnabled       Boolean  @default(false)
+  ssoProvider      String?
+  
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Relations
+  users            User[]
+  businesses       Business[]
+  invitations     Invitation[]
+  audits          AuditLog[]
+  webhooks        Webhook[]
+  
+  @@map("tenants")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  super_admin
+  organization_admin
+  business_owner
+  ca_admin
+  ca_staff
+  auditor
+  read_only_auditor
+  compliance_manager
+  viewer
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+  pending_verification
+}
+
+model User {
+  id              String    @id @default(uuid())
+  tenantId        String
+  email           String
+  passwordHash   String
+    
+  // Profile
+  firstName       String
+  lastName       String
+  phone          String?
+  profileImageUrl String?
+  
+  // Role & Status
+  role           UserRole  @default(viewer)
+  status         UserStatus @default(active)
+  emailVerified  Boolean  @default(false)
+  phoneVerified  Boolean  @default(false)
+  
+  // MFA
+  mfaEnabled     Boolean  @default(false)
+  mfaSecret     String?
+  
+  // Last Activity
+  lastLoginAt    DateTime?
+  lastLoginIp   String?
+  loginCount    Int      @default(0)
+  
+  // Preferences
+  preferences    Json     @default("{}")
+  
+  // Timestamps
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  // Relations
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  sessions       Session[]
+  auditLogs      AuditLog[]
+  
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+model Session {
+  id            String   @id @default(uuid())
+  userId        String
+  tenantId      String
+  
+  // Token Info
+  accessToken   String   @unique
+  refreshToken String? @unique
+  tokenExpiry  DateTime
+  refreshTokenExpiry DateTime?
+  
+  // Device Info
+  deviceId     String?
+  deviceName  String?
+  ipAddress   String?
+  userAgent   String?
+  
+  // Status
+  isRevoked   Boolean  @default(false)
+  revokedAt  DateTime?
+  
+  createdAt   DateTime @default(now())
+  
+  user        User    @relation(fields: [userId], references: [id])
+  
+  @@map("sessions")
+}
+
+model Invitation {
+  id          String   @id @default(uuid())
+  tenantId    String
+  email      String
+  
+  // Invitation Details
+  role       UserRole @default(viewer)
+  invitedBy  String
+  businessId String?
+  
+  // Token
+  token      String   @unique
+  expiresAt  DateTime
+  
+  // Status
+  acceptedAt DateTime?
+  acceptedIp String?
+  
+  createdAt  DateTime @default(now())
+  
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  
+  @@unique([tenantId, email])
+  @@map("invitations")
+}
+
+// ============================================
+// BUSINESS ENTITIES
+// ============================================
+
+enum EntityType {
+  proprietary
+  partnership
+  private_limited
+  public_limited
+  huf
+  individual
+  trust
+  society
+  nfp
+  government
+  OTHER
+}
+
+enum BusinessStatus {
+  active
+  dormant
+  closed
+  under_liquidation
+}
+
+model Business {
+  id              String       @id @default(uuid())
+  tenantId        String
+  
+  // Entity Identity
+  name            String
+  tradeName       String?
+  
+  // Indian IDs
+  pan             String       @unique // Mandatory
+  panLinkedEmail  String?
+  tan             String?
+  cin             String?
+  llpin           String?
+  gstin           String?     @unique
+  
+  // Entity Details
+  entityType      EntityType   @default(proprietary)
+  dateOfIncorporation DateTime?
+  commencementDate DateTime?
+  
+  // Industry & Classification
+  industry        String?
+  nicCode        String?
+  sector         String?
+  subSector      String?
+  
+  // Scale
+  annualTurnover Decimal?
+  employeeCount  Int?
+  registeredEmployees Int?
+  
+  // Addresses
+  registeredAddress  String?
+  principalPlaceAddress String?
+  additionalPlaces  Json? // []
+  
+  // Contact
+  contactPerson  String?
+  contactEmail String?
+  contactPhone String?
+  
+  // Compliance Applicability
+  gstApplicable     Boolean @default(false)
+  epfApplicable    Boolean @default(false)
+  esicApplicable   Boolean @default(false)
+  tdsApplicable    Boolean @default(false)
+  ptApplicable    Boolean @default(false)
+  
+  // Compliance Health
+  complianceScore Int      @default(75)
+  healthStatus   String   @default("good") // excellent, good, fair, poor,critical
+  
+  // Status
+  status         BusinessStatus @default(active)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  registrations Registration[]
+  returns       GstReturn[]
+  notices       Notice[]
+  vendors       Vendor[]
+  reconciliations Reconciliation[]
+  
+  @@map("businesses")
+}
+
+model Registration {
+  id              String   @id @default(uuid())
+  businessId      String
+  
+  // Registration Type
+  type           String   // GST, EPFO, ESIC, TDS, PT, TAN, etc.
+  registrationNumber String
+  link            String?  // Portal link
+  
+  // Validity
+  dateOfRegistration DateTime?
+  validFrom       DateTime?
+  validTo         DateTime?
+  status          String   // active, cancelled, surrendered, suspended
+  
+  // Additional Info
+  jurisdiction   String?
+  circle         String?
+  ward           String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  business       Business @relation(fields: [businessId], references: [id])
+  
+  @@unique([businessId, type])
+  @@map("registrations")
+}
+
+// ============================================
+// GST RETURNS & FILINGS
+// ============================================
+
+enum GstrFormType {
+  GSTR_1
+  GSTR_3B
+  GSTR_4
+  GSTR_5
+  GSTR_6
+  GSTR_7
+  GSTR_8
+  GSTR_9
+  GSTR_9C
+  CMP_08
+  IFF
+}
+
+enum FilingStatus {
+  filed
+  late_filed
+  not_filed
+  processing
+  pending
+  nil
+  void
+}
+
+model GstReturn {
+  id              String       @id @default(uuid())
+  businessId      String
+  financialYear   String
+  taxPeriod       String       // Monthly: "2024-04", Quarterly: "2024-Q1"
+  
+  // Return Details
+  formType        GstrFormType
+  formNumber     String?
+  
+  // Filing Info
+  status         FilingStatus  @default(not_filed)
+  dueDate        DateTime?
+  filedDate     DateTime?
+  ackNumber    String?
+  ackDate      DateTime?
+  arn          String?
+  
+  // Amounts
+  totalLiability  Decimal    @default(0)
+  cashLiability   Decimal    @default(0)
+  itcAvailable   Decimal    @default(0)
+  itcUsed        Decimal    @default(0)
+  taxPaid        Decimal    @default(0)
+  interestPaid   Decimal    @default(0)
+  penaltyPaid   Decimal    @default(0)
+  lateFeePaid   Decimal    @default(0)
+  
+  // Delay Info
+  delayDays     Int?
+  
+  // JSON Data
+  summary       Json?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  business      Business    @relation(fields: [businessId], references: [id])
+  
+  @@unique([businessId, formType, taxPeriod])
+  @@map("gst_returns")
+}
+
+// ============================================
+// GST NOTICES & COMMUNICATIONS
+// ============================================
+
+enum NoticeType {
+  gstr1_not_filed
+  gstr3b_not_filed
+  tax_demand
+  refund_rejection
+  ITC_mismatch
+  scrutiny
+  audit
+  inspection
+  summons
+  penalty
+  compoundable_offense
+  cancellation
+  provisional_attachment
+  OTHER
+}
+
+enum NoticeSeverity {
+  info
+  low
+  medium
+  high
+  critical
+}
+
+enum NoticeStatus {
+  received
+  viewed
+  under_review
+  response_drafting
+  response_submitted
+  hearing_scheduled
+  resolved
+  appeal_filed
+  pending_payment
+  disputed
+}
+
+model Notice {
+  id              String       @id @default(uuid())
+  businessId      String
+  
+  // Notice Identification
+  noticeNumber   String?
+  referenceNumber String?
+  noticeDate     DateTime?
+  noticeType    NoticeType
+  noticeCategory String?
+  
+  // Severity & Status
+  severity       NoticeSeverity @default(medium)
+  status         NoticeStatus    @default(received)
+  
+  // Amount
+  demandedAmount Decimal     @default(0)
+  penaltyAmount  Decimal     @default(0)
+  totalAmount   Decimal     @default(0)
+  paidAmount   Decimal     @default(0)
+  
+  // Key Dates
+  dueDate        DateTime?
+  responseDueDate DateTime?
+  hearingDate   DateTime?
+  resolvedDate  DateTime?
+  
+  // Source
+  source         String      @default("portal") // portal, email, manual
+  sourceReference String?
+  
+  // Description
+  title          String?
+  description    String?
+  
+  // AI Analysis
+  aiSummary      String?
+  aiRiskLevel    String?
+  aiActionItems  Json? // []
+  aiConfidence   Float?
+  
+  // Response
+  responseDate   DateTime?
+  responseDocUrl String?
+  
+  // Timeline Events
+  events         Json? // [{date, action, by}]
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  
+  business       Business    @relation(fields: [businessId], references: [id])
+  
+  @@map("notices")
+}
+
+// ============================================
+// GST LEDGER
+// ============================================
+
+model GstLedger {
+  id              String   @id @default(uuid())
+  businessId      String
+  ledgerType      String   // cash, credit, liability
+  
+  // Entry Details
+  date            DateTime
+  transactionType String  // payment, credit, debit, adjustment, refund
+  description    String?
+  
+  // Amounts
+  amount          Decimal
+  sgst            Decimal  @default(0)
+  cgst            Decimal  @default(0)
+  igst            Decimal  @default(0)
+  cess           Decimal   @default(0)
+  
+  // Reference
+  returnId       String?
+  challengeId   String?
+  paymentRef    String?
+  doctype       String?
+  
+  balance        Decimal
+  isReversal     Boolean  @default(false)
+  
+  createdAt      DateTime  @default(now())
+  
+  @@index([businessId, date])
+  @@map("gst_ledger")
+}
+
+// ============================================
+// VENDORS & GSTR-2B
+// ============================================
+
+enum VendorStatus {
+  active
+  inactive
+  blacklisted
+  blocked
+}
+
+enum VendorRiskLevel {
+  trusted
+  low_risk
+  medium_risk
+  high_risk
+  critical
+}
+
+model Vendor {
+  id              String        @id @default(uuid())
+  tenantId        String
+  businessId      String
+  
+  // Vendor Identity
+  name            String
+  tradeName       String?
+  
+  // Indian IDs
+  gstin           String       @unique
+  pan             String?
+  tan             String?
+  
+  // Address
+  address         String?
+  state           String?
+  pincode         String?
+  
+  // Business Type
+  entityType      EntityType?
+  
+  // Compliance Score
+  complianceScore Int         @default(70)
+  riskLevel       VendorRiskLevel @default(low_risk)
+  lastGstr1Filed DateTime?
+  lastGstr3BFiled DateTime?
+  
+  // Counts
+  totalInvoices   Int         @default(0)
+  matchedInvoices Int        @default(0)
+  unmatchedInvoices Int     @default(0)
+  missingInvoices Int       @default(0)
+  
+  // ITC Exposure
+  itcClaimed     Decimal    @default(0)
+  itcAtRisk      Decimal    @default(0)
+  itcBlocked    Decimal    @default(0)
+  
+  // Status
+  status         VendorStatus @default(active)
+  statusReason   String?
+  
+  // Timestamps
+  firstSeenAt    DateTime   @default(now())
+  lastSeenAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  // Relations
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  business      Business   @relation(fields: [businessId], references: [id])
+  invoices      Gstr2bInvoice[]
+  
+  @@unique([tenantId, gstin, businessId])
+  @@map("vendors")
+}
+
+model Gstr2bInvoice {
+  id              String    @id @default(uuid())
+  vendorId        String
+  businessId     String
+  period         String    // "2024-04"
+  
+  // Invoice Details
+  invoiceNumber  String
+  invoiceDate   DateTime
+  invoiceValue  Decimal
+  
+  // GSTR-2B Data
+  gstr2bInvoiceType String? // credit, debit
+  gstr2bFilingStatus String? // filed, matched, missing, excess
+  
+  // Match Result
+  matchStatus   String? // matched, missing, mismatch, duplicate
+  matchDifference Decimal? // Value difference
+  
+  // Rates
+  rate          Decimal?
+  taxableValue  Decimal?
+  sgst          Decimal?
+  cgst          Decimal?
+  igst          Decimal?
+  cess          Decimal?
+  
+  // Reverse Charge
+  reverseCharge Boolean @default(false)
+  
+  // Position
+  pos           String?  // State of supply
+  
+  // Source
+  source        String? // portal, 2a_auto, 2a_manual, manual
+  
+  // ITC
+  itcEligible   Boolean @default(true)
+  itcClaimed    Decimal @default(0)
+  
+  // Dates
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  vendor        Vendor   @relation(fields: [vendorId], references: [id])
+  business      Business @relation(fields: [businessId], references: [id])
+  
+  @@unique([vendorId, invoiceNumber, period])
+  @@index([businessId, period])
+  @@map("gstr2b_invoices")
+}
+
+// ============================================
+// RECONCILIATION
+// ============================================
+
+enum ReconcileStatus {
+  pending
+  in_progress
+  completed
+  requires_action
+  disputed
+}
+
+enum ReconcileType {
+  itc_monthly
+  itc_quarterly
+  annual
+}
+
+model Reconciliation {
+  id              String        @id @default(uuid())
+  businessId      String
+  
+  // Period
+  period         String
+  reconcileType ReconcileType
+  
+  // Books Data
+  booksTotal    Decimal
+  booksInvoiceCount Int
+  
+  // GSTR-2B Data
+  gstr2bTotal   Decimal
+  gstr2bInvoiceCount Int
+  
+  // Variance
+  varianceAmount Decimal    @default(0)
+  variancePercent Float?
+  
+  // Breakdown
+  matchedAmount  Decimal    @default(0)
+  missingAmount Decimal    @default(0)
+  mismatchAmount Decimal   @default(0)
+  duplicateAmount Decimal  @default(0)
+  blockedAmount Decimal   @default(0)
+  
+  // Counts
+  matchedInvoices Int     @default(0)
+  missingInvoices Int    @default(0)
+  mismatchInvoices Int   @default(0)
+  duplicateInvoices Int  @default(0)
+  
+  // Status
+  status        ReconcileStatus @default(pending)
+  completedAt   DateTime?
+  completedBy  String?
+  
+  // Notes
+  notes         String?
+  actionItems  Json? // []
+  
+  createdAt    DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  business    Business  @relation(fields: [businessId], references: [id])
+  
+  @@unique([businessId, period])
+  @@map("reconciliations")
+}
+
+// ============================================
+// COMPLIANCE TIMELINE
+// ============================================
+
+enum TimelineEventType {
+  return_filed
+  return_latefiled
+  return_not_filed
+  notice_received
+  notice_response
+  payment_made
+  registration_granted
+  registration_cancelled
+  vendor_added
+  vendor_compliance_change
+  reconciliation_completed
+  risk_detected
+  threshold_crossed
+  user_login
+  auditor_access
+}
+
+model TimelineEvent {
+  id              String          @id @default(uuid())
+  tenantId        String
+  businessId     String?
+  userId         String?
+  
+  // Event Details
+  eventType      TimelineEventType
+  title         String
+  description   String?
+  
+  // Metadata
+  metadata       Json? // Flexible key-value
+  
+  // Related Entities
+  relatedEntityType String?
+  relatedEntityId String?
+  
+  // Severity (for alerts)
+  severity       String? // info, success, warning, error
+  
+  // Timestamp
+  timestamp     DateTime @default(now())
+  
+  @@index([tenantId, timestamp])
+  @@index([businessId, timestamp])
+  @@map("timeline_events")
+}
+
+// ============================================
+// DOCUMENTS
+// ============================================
+
+enum DocumentType {
+  notice
+  return
+  challan
+  acknowledgement
+  certificate
+  legal
+  contract
+  other
+}
+
+enum DocumentStatus {
+  uploaded
+  processing
+  processed
+  failed
+  archived
+}
+
+model Document {
+  id              String       @id @default(uuid())
+  tenantId        String
+  businessId      String?
+  
+  // File Details
+  fileName        String
+  originalName    String
+  fileType        String
+  mimeType        String
+  size            Int
+  
+  // Storage
+  storageKey     String      // S3 key
+  storageUrl     String?
+  encryptionKey  String?
+  
+  // Document Classification
+  documentType   DocumentType @default(other)
+  documentStatus DocumentStatus @default(uploaded)
+  
+  // Extracted Data (OCR)
+  ocrText        String?
+  extractedData  Json?
+  
+  // Tags & Metadata
+  tags           String[]   // ["gst", "notice", "2024"]
+  metadata       Json?
+  
+  // Hash for integrity
+  checksum       String?
+  
+  // Timestamps
+  uploadedAt    DateTime   @default(now())
+  processedAt   DateTime?
+  
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  business       Business? @relation(fields: [businessId], references: [id])
+  
+  @@map("documents")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+enum NotificationChannel {
+  in_app
+  email
+  sms
+  whatsapp
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  delivered
+  failed
+  clicked
+}
+
+model Notification {
+  id              String             @id @default(uuid())
+  tenantId        String
+  userId         String?
+  businessId    String?
+  
+  // Notification Content
+  type           String             // filing_due, notice_received, etc.
+  channel        NotificationChannel @default(in_app)
+  title          String
+  message        String
+  actionUrl      String?
+  
+  // Delivery
+  status         NotificationStatus @default(pending)
+  sentAt        DateTime?
+  deliveredAt  DateTime?
+  
+  // Failure Info
+  failureReason String?
+  retryCount   Int        @default(0)
+  
+  // Scheduling
+  scheduledFor  DateTime?
+  
+  // Click Tracking
+  clickedAt     DateTime?
+  
+  createdAt    DateTime @default(now())
+  
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@index([tenantId, status])
+  @@map("notifications")
+}
+
+// ============================================
+// AUDIT & LOGGING
+// ============================================
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  tenantId        String
+  userId         String?
+  
+  // Action
+  action         String   // login, create, update, delete, etc.
+  entityType     String   // User, Business, Notice, etc.
+  entityId       String?
+  
+  // Changes
+  oldValues      Json?
+  newValues     Json?
+  
+  // Request Info
+  ipAddress      String?
+  userAgent     String?
+  requestMethod String?
+  requestPath   String?
+  
+  // Result
+  success        Boolean  @default(true)
+  errorMessage  String?
+  
+  timestamp     DateTime @default(now())
+  
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@index([tenantId, timestamp])
+  @@index([userId, timestamp])
+  @@map("audit_logs")
+}
+
+// ============================================
+// WEBHOOKS
+// ============================================
+
+model Webhook {
+  id              String   @id @default(uuid())
+  tenantId        String
+  
+  // Configuration
+  name           String
+  url            String
+  secret         String?
+  
+  // Events
+  events         String[] // ["notice.received", "return.filed"]
+  
+  // Status
+  enabled        Boolean  @default(true)
+  
+  // Stats
+  lastTriggeredAt DateTime?
+  triggerCount   Int      @default(0)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("webhooks")
+}
+
+// ============================================
+// AI KNOWLEDGE BASE (RAG)
+// ============================================
+
+model KnowledgeArticle {
+  id              String   @id @default(uuid())
+  tenantId        String?
+  
+  // Content
+  title           String
+  content         String   @db.Text
+  summary         String?
+  
+  // Category
+  category       String   // gst, income_tax, epfo, esic, compliance
+  tags            String[]
+  
+  // Source
+  source          String?
+  sourceUrl       String?
+  
+  // Versioning
+  version         Int      @default(1)
+  isActive        Boolean  @default(true)
+  
+  // Search
+  embedding       Bytes?   // pgvector embedding
+  
+  // Meta
+  authoredBy     String?
+  reviewedBy     String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([category])
+  @@map("knowledge_articles")
+}
+
+model AiConversation {
+  id              String   @id @default(uuid())
+  tenantId        String
+  userId         String
+  businessId    String?
+  
+  // Messages
+  messages       Json     // [{role, content, timestamp}]
+  
+  // Context
+  mode           String   // business_owner, accountant, ca, auditor, cfo
+  language       String   @default("en")
+  
+  // Tokens
+  promptTokens   Int      @default(0)
+  completionTokens Int   @default(0)
+  
+  // Rating
+  rating         Int?     // 1-5
+  feedback      String?
+  
+  // Status
+  status         String   @default("active") // active, archived
+  
+  createdAt      DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("ai_conversations")
+}
+
+// ============================================
+// COMPLIANCE RULES ENGINE
+// ============================================
+
+model ComplianceRule {
+  id              String   @id @default(uuid())
+  
+  // Rule Definition
+  name           String
+  slug           String   @unique
+  description   String?
+  
+  // Category
+  category       String   // applicability, threshold, deadline, penalty
+  complianceType String   // gst, epfo, esic, tds, pt
+  
+  // Logic
+  ruleExpression  String   // JSON logic
+  ruleEngine    String   @default("static") // static, dynamic, ml
+  
+  // Values
+  threshold      Decimal?
+  thresholdUnit  String?  // percentage, count, amount
+  
+  // Effective Dates
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  
+  // Jurisdiction
+  state         String?
+  jurisdiction  String?
+  
+  // Status
+  isActive      Boolean  @default(true)
+  priority      Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([slug, complianceType])
+  @@map("compliance_rules")
+}
+
+model ComplianceSchedule {
+  id              String   @id @default(uuid())
+  complianceRuleId String?
+  businessId     String
+  
+  // Schedule
+  name           String
+  description   String?
+  
+  // Frequency
+  frequency      String   // monthly, quarterly, yearly, adhoc
+  period         String?  // "April", "Q1", etc.
+  
+  // Dates
+  dueDate       DateTime?
+  reminderDays Int      @default(7)
+  
+  // Status
+  status        String   @default("pending") // pending, completed, skipped, overdue
+  
+  completedAt   DateTime?
+  
+  createdAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([businessId, complianceRuleId, period])
+  @@map("compliance_schedules")
+}
