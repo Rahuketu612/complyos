@@ -9,12 +9,32 @@ For local testing without registering a new organization:
 | Email | `demo@complyos.dev` |
 | Password | `DemoPassword123!` |
 
-To seed demo data:
+### Option 1: Using Makefile
+
+```bash
+# One-command setup
+make setup migrate seed
+make dev          # Start all services
+make verify      # Run E2E tests
+```
+
+### Option 2: Manual Setup
 
 ```bash
 cd apps/auth-service
-npx prisma migrate dev --name init  # Only if tables don't exist
+npm install
+npx prisma migrate dev --name init
 npm run seed:dev
+cd ../api-gateway
+npm run start:dev
+```
+
+### Verify Setup
+
+```bash
+make verify
+# Or manually:
+./scripts/e2e-smoke.sh
 ```
 
 ## Prerequisites

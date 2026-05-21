@@ -13,7 +13,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "jest",
     "test:cov": "jest --coverage",
-    "seed:dev": "ts-node src/seed.ts"
+    "seed:dev": "ts-node src/seed.ts",
+    "prisma:migrate": "npx prisma migrate dev --name init"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

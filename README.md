@@ -8,6 +8,16 @@ For local testing: `demo@complyos.dev` / `DemoPassword123!`
 
 See [SETUP.md](./SETUP.md) for seeding instructions.
 
+## Quick Start
+
+```bash
+make setup migrate seed  # Install + migrate + seed
+make dev              # Start all services
+make verify          # Run E2E tests
+```
+
+Open http://localhost:3000 to access the app.
+
 ## Overview
 
 COMPLYOS aggregates data from Indian statutory portals (GST, IT, EPFO, ESIC, TRACES) to create a unified compliance identity. Features AI assistants for notice analysis, vendor risk monitoring, and predictive compliance alerts.
