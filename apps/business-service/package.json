@@ -11,7 +11,7 @@
     "start:dev": "nest start --watch",
     "lint": "eslint \"src/**/*.ts\"",
     "prisma:generate": "prisma generate --schema ../../packages/database/schema.prisma",
-    "postinstall": "DATABASE_URL=\"postgres://placeholder:placeholder@localhost:5432/placeholder\" prisma generate --schema ../../packages/database/schema.prisma"
+    "postinstall": "prisma generate --schema ../../packages/database/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
@@ -26,9 +26,9 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.0",
-    "@prisma/client": "5.22.0",
-    "@prisma/engines": "5.22.0",
-    "prisma": "5.22.0",
+    "@prisma/client": "^5.22.0",
+    "@prisma/engines": "^5.22.0",
+    "prisma": "^5.22.0",
     "typescript": "^5.3.3"
   }
 }
