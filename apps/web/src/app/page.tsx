@@ -10,14 +10,16 @@ import { useAuthStore } from "@/store/auth-store"
 import { api } from "@/lib/api"
 
 interface LoginResponse {
-  accessToken: string
-  refreshToken?: string
-  user: { id: string; email: string; firstName: string; lastName?: string }
+  user: { id: string; email: string; firstName: string; lastName?: string; tenantId: string }
+  tenant: { id: string; name: string; slug: string }
+  tokens: { accessToken: string; refreshToken: string; expiresIn: number }
+  requiresMfa: boolean
 }
 
 export default function LoginPage() {
   const router = useRouter()
   const login = useAuthStore((state) => state.login)
+  const setSelectedBusiness = useAuthStore((state) => state.setSelectedBusiness)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -30,7 +32,24 @@ export default function LoginPage() {
 
     try {
       const response = await api.post<LoginResponse>("/api/auth/login", { email, password })
-      login({ accessToken: response.accessToken, refreshToken: response.refreshToken }, response.user)
+      
+      // Map backend response to frontend store format
+      const { user, tenant, tokens, requiresMfa } = response
+      
+      // Store tokens and business context
+      login({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }, {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      })
+      
+      // Store tenant/business context for later selection
+      if (tenant) {
+        setSelectedBusiness(tenant.id, tenant.name)
+      }
+      
+      // Redirect to dashboard
       router.push("/dashboard")
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Invalid credentials"
