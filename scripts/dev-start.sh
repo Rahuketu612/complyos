@@ -1,6 +1,7 @@
 #!/bin/bash
 # COMPLYOS Local Development Startup Script
 # Starts services in correct order with health checks
+# Can run with or without Docker
 
 set -e
 
@@ -38,75 +39,117 @@ check_service() {
   return 1
 }
 
-# Start infrastructure
-log_info "Starting Postgres and Redis..."
-cd infra/docker
-docker-compose up -d postgres redis
+# Check if we have the services already running
+check_existing() {
+  log_info "Checking for existing services..."
+  
+  if curl -sf http://localhost:3000/api/ > /dev/null 2>&1; then
+    log_warn "Gateway already running on 3000"
+    ALREADY_RUNNING=1
+  fi
+  
+  if curl -sf http://localhost:3001/auth/health > /dev/null 2>&1; then
+    log_warn "Auth service already running on 3001"
+    AUTH_RUNNING=1
+  fi
+}
 
-# Wait for Postgres
-log_info "Waiting for Postgres..."
-until docker exec postgres-db pg_isready -U complyos > /dev/null 2>&1; do
-  log_warn "Waiting for Postgres..."
-  sleep 2
-done
-log_info "Postgres is ready"
+# Start infrastructure only if Docker available
+start_infra() {
+  if ! command -v docker >/dev/null 2>&1; then
+    log_warn "Docker not available - assuming local Postgres/Redis"
+    return 1
+  fi
+  
+  if ! docker ps >/dev/null 2>&1; then
+    log_warn "Docker daemon not running"
+    return 1
+  fi
+  
+  log_info "Starting Postgres and Redis..."
+  cd infra/docker
+  docker-compose up -d postgres redis 2>/dev/null || log_warn "Could not start Docker services"
+  return 0
+}
 
-# Wait for Redis
-log_info "Waiting for Redis..."
-until docker exec redis-cache redis-cli ping > /dev/null 2>&1; do
-  log_warn "Waiting for Redis..."
-  sleep 2
-done
-log_info "Redis is ready"
-
-# Run migrations (if needed)
-log_info "Setting up database..."
-cd ../apps/auth-service
-npm run prisma:migrate 2>/dev/null || log_warn "Migration may already be applied"
-
-cd ../business-service
-npm run prisma:migrate 2>/dev/null || log_warn "Migration may already be applied"
+# Run migrations
+run_migrations() {
+  log_info "Running database migrations..."
+  
+  for svc in auth-service business-service; do
+    if [ -d "apps/$svc" ]; then
+      (cd "apps/$svc" && npx prisma migrate dev --name init 2>/dev/null) || \
+        log_warn "Migration may already be applied for $svc"
+    fi
+  done
+}
 
 # Seed demo data
-log_info "Seeding demo data..."
-cd ../auth-service
-npm run seed:dev 2>/dev/null || log_info "Demo data may already exist"
+seed_data() {
+  log_info "Seeding demo data..."
+  
+  if [ -d "apps/auth-service" ]; then
+    (cd apps/auth-service && npm run seed:dev 2>/dev/null) || \
+      log_info "Demo data may already exist"
+  fi
+}
 
-# Start all services in background
-log_info "Starting microservices..."
+# Start a service
+start_service() {
+  local svc_dir=$1
+  local port=$2
+  local name=$3
+  
+  # Check if already running
+  if curl -sf "http://localhost:$port/" > /dev/null 2>&1; then
+    log_warn "$name already running"
+    return 0
+  fi
+  
+  log_info "Starting $name..."
+  
+  if [ ! -d "$svc_dir" ]; then
+    log_error "$svc_dir not found"
+    return 1
+  fi
+  
+  cd "$svc_dir"
+  
+  # Start in background
+  if [ -f "package.json" ]; then
+    npm run start:dev > "/tmp/${name}.log" 2>&1 &
+    log_info "Started $name (check /tmp/${name}.log for output)"
+  fi
+  
+  cd - > /dev/null
+}
 
-# Start auth-service
-cd ../apps/auth-service
-npm run start:dev > /tmp/auth-service.log 2>&1 &
-AUTH_PID=$!
-log_info "Started auth-service (PID: $AUTH_PID)"
+# Main
+check_existing
 
-# Check auth-service health
-check_service "http://localhost:3001/auth/health" "auth-service"
+# Only attempt Docker infra if services aren't already running
+if [ -z "$ALREADY_RUNNING" ] && [ -z "$AUTH_RUNNING" ]; then
+  start_infra || log_warn "Skipping Docker - using local/remote services"
+fi
 
-# Start business-service
-cd ../apps/business-service
-npm run start:dev > /tmp/business-service.log 2>&1 &
-BUSINESS_PID=$!
-log_info "Started business-service (PID: $BUSINESS_PID)"
+# Try migrations (may fail if DB unavailable)
+run_migrations 2>/dev/null || true
 
-# Start api-gateway
-cd ../apps/api-gateway
-npm run start:dev > /tmp/api-gateway.log 2>&1 &
-GATEWAY_PID=$!
-log_info "Started api-gateway (PID: $GATEWAY_PID)"
+# Seed (may fail if DB unavailable)
+seed_data 2>/dev/null || true
 
-# Check gateway health
-check_service "http://localhost:3000/health" "api-gateway"
+# Start services if not running
+if [ -z "$AUTH_RUNNING" ]; then
+  start_service "apps/auth-service" 3001 "auth-service" || true
+  check_service "http://localhost:3001/auth/health" "auth-service" || log_warn "Auth service may need manual startup"
+fi
 
-# Start web
-cd ../apps/web
-npm run dev > /tmp/web.log 2>&1 &
-WEB_PID=$!
-log_info "Started web (PID: $WEB_PID)"
+start_service "apps/business-service" 3002 "business-service" || true
+start_service "apps/api-gateway" 3000 "api-gateway" || true
+start_service "apps/web" 3005 "web" || true
 
 log_info "=========================================="
-log_info "All services started successfully!"
+log_info "Setup complete!"
 log_info "=========================================="
 log_info ""
 log_info "Services:"
@@ -120,6 +163,3 @@ log_info "  Email:    demo@complyos.dev"
 log_info "  Password: DemoPassword123!"
 log_info ""
 log_info "Run './scripts/e2e-smoke.sh' to verify setup"
-
-# Save PIDs for reference
-echo "$AUTH_PID $BUSINESS_PID $GATEWAY_PID $WEB_PID" > /tmp/complyos-services.pids
