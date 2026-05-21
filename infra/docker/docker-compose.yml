@@ -130,6 +130,20 @@ services:
     volumes:
       - ./apps/api-gateway:/workspace/project
 
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://api-gateway:3000
+    depends_on:
+      - api-gateway
+    volumes:
+      - ./apps/web:/workspace/project
+
 volumes:
   postgres_data:
   redis_data:
