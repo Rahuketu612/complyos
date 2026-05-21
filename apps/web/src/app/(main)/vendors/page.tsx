@@ -21,7 +21,7 @@ function DemoBadge() {
 }
 
 export default function VendorsPage() {
-  const { data, isLoading } = useVendors('1')
+  const { data, isLoading } = useVendors()
   const vendors = data?.vendors || mockVendors
   const summary = data?.summary || mockVendorSummary
 
@@ -46,7 +46,7 @@ export default function VendorsPage() {
           <CardContent>
             <div className="space-y-3">
               {vendors.map((vendor) => {
-                const config = riskConfig[vendor.riskLevel]
+                const config = riskConfig[(vendor.riskLevel || 'low') as keyof typeof riskConfig] || riskConfig.low
                 const Icon = config.icon
                 return (
                   <div key={vendor.id} className="flex items-center justify-between p-4 border rounded-lg">

@@ -1,8 +1,9 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { api } from "@/lib/api"
-import type { BusinessDashboard } from "@/lib/api"
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import type { Business, BusinessDashboard } from '@/lib/api'
+import { useAuthStore } from '@/store/auth-store'
 
 // Combined dashboard data
 export interface DashboardStats {

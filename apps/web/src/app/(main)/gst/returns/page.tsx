@@ -28,7 +28,7 @@ function DemoBadge() {
 }
 
 export default function GstReturnsPage() {
-  const { data, isLoading } = useGstReturns('1')
+  const { data, isLoading } = useGstReturns()
   const returns = data?.returns || mockGstReturns
   const summary = data?.summary || mockGstReturnSummary
 
@@ -65,7 +65,7 @@ export default function GstReturnsPage() {
                 </thead>
                 <tbody>
                   {returns.map((ret, i) => {
-                    const config = statusConfig[ret.status] || statusConfig.pending
+                    const config = statusConfig[(ret.status || 'pending') as keyof typeof statusConfig] || statusConfig.pending || statusConfig.pending
                     const Icon = config.icon
                     return (
                       <tr key={i} className="border-b">

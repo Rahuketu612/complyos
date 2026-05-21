@@ -6,9 +6,18 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useAuthStore } from "@/store/auth-store"
+import { api } from "@/lib/api"
+
+interface LoginResponse {
+  accessToken: string
+  refreshToken?: string
+  user: { id: string; email: string; firstName: string; lastName?: string }
+}
 
 export default function LoginPage() {
   const router = useRouter()
+  const login = useAuthStore((state) => state.login)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -20,10 +29,12 @@ export default function LoginPage() {
     setError("")
 
     try {
-      // Demo login - just redirect
+      const response = await api.post<LoginResponse>("/api/auth/login", { email, password })
+      login({ accessToken: response.accessToken, refreshToken: response.refreshToken }, response.user)
       router.push("/dashboard")
-    } catch {
-      setError("Invalid credentials")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Invalid credentials"
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -38,30 +49,14 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            {error && (
-              <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">{error}</div>
-            )}
+            {error && <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">{error}</div>}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
           </CardContent>
           <CardFooter>

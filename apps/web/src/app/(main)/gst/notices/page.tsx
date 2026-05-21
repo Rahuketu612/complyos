@@ -16,7 +16,7 @@ function DemoBadge() {
 }
 
 export default function GstNoticesPage() {
-  const { data, isLoading } = useGstNotices('1')
+  const { data, isLoading } = useGstNotices()
   const notices = data?.notices || mockGstNotices
   const summary = data?.summary || mockGstNoticeSummary
 
@@ -44,7 +44,7 @@ export default function GstNoticesPage() {
                   <CardTitle className="text-base">{notice.type.charAt(0).toUpperCase() + notice.type.slice(1)} Notice</CardTitle>
                   <p className="text-sm text-muted-foreground">{notice.reason}</p>
                 </div>
-                <AlertCircle className={statusIcons[notice.status]} />
+                <AlertCircle className={statusIcons[(notice.status || 'pending') as keyof typeof statusIcons] || statusIcons.pending} />
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">

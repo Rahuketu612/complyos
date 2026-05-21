@@ -1,7 +1,10 @@
 /**
  * COMPLYOS API Client
  * Communicates with backend via API Gateway (:3000)
+ * Automatically attaches auth token from Zustand store
  */
+
+import { useAuthStore } from '@/store/auth-store'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
@@ -21,7 +24,13 @@ export class ApiError extends Error {
 // ============ Core Client ============
 
 async function client<T>(endpoint: string, options?: ApiClientOptions): Promise<T> {
-  const { token, ...fetchOptions } = options || {}
+  // Get token from store (only on client side)
+  let token: string | undefined = options?.token
+  if (typeof window !== 'undefined' && !token) {
+    token = useAuthStore.getState().accessToken ?? undefined
+  }
+  
+  const { token: _, ...fetchOptions } = options || {}
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -38,6 +47,13 @@ async function client<T>(endpoint: string, options?: ApiClientOptions): Promise<
   })
 
   if (!response.ok) {
+    // Handle 401 - token expired
+    if (response.status === 401) {
+      useAuthStore.getState().logout()
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
+    }
     const error = await response.json().catch(() => ({ message: 'Request failed' }))
     throw new ApiError(response.status, error.message)
   }
