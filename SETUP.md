@@ -83,6 +83,12 @@ cp apps/ai-service/.env.example apps/ai-service/.env
 
 ### 6. Start All Services
 
+**Frontend (port 3005):**
+```bash
+cd apps/web
+npm run dev
+```
+
 **Terminal 1 - Auth (port 3001):**
 ```bash
 cd apps/auth-service
