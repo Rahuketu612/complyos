@@ -536,6 +536,13 @@ enum VendorRiskLevel {
   critical
 }
 
+// MSME Classification
+enum MsmeType {
+  MICRO
+  SMALL
+  MEDIUM
+}
+
 model Vendor {
   id         String @id @default(uuid())
   tenantId   String
@@ -557,6 +564,12 @@ model Vendor {
 
   // Business Type
   entityType EntityType?
+
+  // MSME Compliance (Delayed Payment Act)
+  msmeRegistered Boolean  @default(false)
+  udyamNumber    String?
+  msmeType       MsmeType?
+  paymentDueDays Int      @default(30) // Standard payment terms
 
   // Compliance Score
   complianceScore Int             @default(70)
@@ -788,6 +801,26 @@ enum DocumentStatus {
   archived
 }
 
+// Retention policy constants (in years)
+// GST_RECORDS: 6 years per GST Act
+// INCOME_TAX: 8 years per Income Tax Act
+// TDS_RECORDS: 7 years
+// COMPANY_RECORDS: 8 years
+// AUDIT_WORKPAPERS: 8 years
+// CONTRACTS: 8 years from expiry
+// PERSONAL_DATA: DPDP Act - as long as purpose exists
+// DEFAULT: 7 years standard
+enum RetentionCategory {
+  GST_RECORDS
+  INCOME_TAX
+  TDS_RECORDS
+  COMPANY_RECORDS
+  AUDIT_WORKPAPERS
+  CONTRACTS
+  PERSONAL_DATA
+  DEFAULT
+}
+
 model Document {
   id         String  @id @default(uuid())
   tenantId   String
@@ -819,6 +852,11 @@ model Document {
 
   // Hash for integrity
   checksum String?
+
+  // CERT-In / Compliance: Document retention
+  retentionCategory  RetentionCategory @default(GST_RECORDS)
+  retentionUntil     DateTime?        // Auto-computed based on category
+  destroyAfterRetain Boolean          @default(false) // Flag for scheduled destruction
 
   // Timestamps
   uploadedAt  DateTime  @default(now())
@@ -889,6 +927,22 @@ model Notification {
 // AUDIT & LOGGING
 // ============================================
 
+// CERT-In compliant event categories
+enum AuditEventCategory {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  TOKEN_REFRESH
+  GST_ACTION
+  VENDOR_ACTION
+  DATA_EXPORT
+  ADMIN_ACTION
+  SECURITY_INCIDENT
+  DATA_ACCESS
+  DATA_MODIFICATION
+  SYSTEM_CONFIG
+}
+
 model AuditLog {
   id       String  @id @default(uuid())
   tenantId String
@@ -899,9 +953,15 @@ model AuditLog {
   entityType String // User, Business, Notice, etc.
   entityId   String?
 
+  // CERT-In: Event category for security classification
+  eventCategory AuditEventCategory?
+
   // Changes
   oldValues Json?
   newValues Json?
+
+  // CERT-In: Correlation ID for request tracing
+  correlationId String?
 
   // Request Info
   ipAddress     String?
@@ -913,6 +973,10 @@ model AuditLog {
   success      Boolean @default(true)
   errorMessage String?
 
+  // CERT-In: Immutable hash chain for tamper detection
+  previousHash String? // Hash of previous audit log entry
+  checksum     String?  // SHA-256 of (timestamp + action + entityType + entityId + userId + correlationId + success)
+
   timestamp DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
@@ -920,6 +984,7 @@ model AuditLog {
 
   @@index([tenantId, timestamp])
   @@index([userId, timestamp])
+  @@index([eventCategory, timestamp])
   @@map("audit_logs")
 }
 
