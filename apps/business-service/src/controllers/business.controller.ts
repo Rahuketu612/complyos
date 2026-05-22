@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { BusinessService } from '../services/business.service';
 import { CreateBusinessDto } from '../dto/create-business.dto';
 import { BusinessFilterDto } from '../dto/business-filter.dto';
@@ -19,6 +20,7 @@ export class BusinessController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
   @ApiOperation({ summary: 'Create new business' })
   @ApiResponse({ status: 201, description: 'Business created' })
   @ApiResponse({ status: 409, description: 'Business with this PAN exists' })
@@ -72,6 +74,7 @@ export class BusinessController {
   }
 
   @Patch(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
   @ApiOperation({ summary: 'Update business' })
   async update(
     @Param('id') id: string,
@@ -82,6 +85,7 @@ export class BusinessController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute
   @ApiOperation({ summary: 'Archive business' })
   async delete(
     @Param('id') id: string,

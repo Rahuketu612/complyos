@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Body, Query, UseGuards, Header } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { VendorService } from '../services/vendor.service';
 import { CreateVendorDto, VendorFilterDto } from '../dto/create-vendor.dto';
 import { CreateInvoiceDto } from '../dto/invoice.dto';
@@ -21,13 +22,14 @@ export class VendorController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
   @ApiOperation({ summary: 'Create vendor' })
   async create(
     @Param('businessId') businessId: string,
     @CurrentUser() user: any,
     @Body() dto: CreateVendorDto,
   ) {
-    return this.vendorService.createVendor(user.tenantId, businessId, dto);
+    return this.vendorService.createVendor(user.tenantId, businessId, dto, user.id);
   }
 
   @Get()
@@ -56,6 +58,7 @@ export class VendorController {
   }
 
   @Post(':id/invoices')
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per minute
   @ApiOperation({ summary: 'Import GSTR-2B invoices' })
   async importInvoices(
     @Param('businessId') businessId: string,
@@ -80,6 +83,7 @@ export class VendorController {
   }
 
   @Post('reconciliation')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute (expensive operation)
   @ApiOperation({ summary: 'RunITC reconciliation' })
   async reconcile(
     @Param('businessId') businessId: string,

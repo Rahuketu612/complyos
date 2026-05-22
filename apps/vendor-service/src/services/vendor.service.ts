@@ -21,7 +21,7 @@ export class VendorService {
   // VENDOR MANAGEMENT
   // ========================================
 
-  async createVendor(tenantId: string, businessId: string, dto: CreateVendorDto) {
+  async createVendor(tenantId: string, businessId: string, dto: CreateVendorDto, userId?: string) {
     // Check for existing vendor with same GSTIN
     const existing = await this.prisma.vendor.findFirst({
       where: {
@@ -51,6 +51,13 @@ export class VendorService {
         riskLevel: 'low_risk',
         complianceScore: 75, // Default score
       },
+    });
+
+    // Audit log for vendor creation
+    await this.logAudit(tenantId, userId, 'vendor_created', 'Vendor', vendor.id, {
+      name: dto.name,
+      gstin: dto.gstin,
+      state: dto.state,
     });
 
     return vendor;
@@ -452,5 +459,25 @@ export class VendorService {
         lastSeenAt: new Date(),
       },
     });
+  }
+
+  private async logAudit(
+    tenantId: string,
+    userId: string | undefined,
+    action: string,
+    entityType: string,
+    entityId: string,
+    values: any,
+  ): Promise<void> {
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action,
+        entityType,
+        entityId,
+        newValues: values,
+      },
+    }).catch(() => {});
   }
 }

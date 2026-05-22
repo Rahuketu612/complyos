@@ -136,6 +136,10 @@ model Session {
   tokenExpiry        DateTime
   refreshTokenExpiry DateTime?
 
+  // Token Family (for rotation tracking)
+  tokenFamily String? // Groups rotated tokens together
+  rotationCount Int    @default(0)
+
   // Device Info
   deviceId   String?
   deviceName String?
@@ -150,6 +154,8 @@ model Session {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId, isRevoked])
+  @@index([tokenFamily, isRevoked])
   @@map("sessions")
 }
 

@@ -212,13 +212,54 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      // Revoke old session
-      await this.prisma.session.updateMany({
-        where: { refreshToken: dto.refreshToken },
-        data: { isRevoked: true, revokedAt: new Date() },
+      // Find existing session
+      const existingSession = await this.prisma.session.findFirst({
+        where: { refreshToken: dto.refreshToken, isRevoked: false },
       });
 
-      return this.generateTokens(user, user.tenantId);
+      // Generate new token family or use existing
+      const tokenFamily = existingSession?.tokenFamily || uuidv4();
+
+      // Revoke old session (mark for rotation tracking)
+      if (existingSession) {
+        await this.prisma.session.update({
+          where: { id: existingSession.id },
+          data: { isRevoked: true, revokedAt: new Date(), rotationCount: { increment: 1 } },
+        });
+      }
+
+      // Revoke all tokens in the family older than current (prevent token reuse attacks)
+      await this.prisma.session.updateMany({
+        where: {
+          tokenFamily,
+          isRevoked: true,
+          rotationCount: { gt: existingSession?.rotationCount || 0 },
+        },
+        data: { isRevoked: true },
+      });
+
+      // Generate new tokens
+      const newTokens = await this.generateTokens(user, user.tenantId);
+
+      // Create new session with token family
+      await this.createSession(user.id, user.tenantId, newTokens.refreshToken, existingSession?.ipAddress);
+
+      // Update session with token family
+      const newSession = await this.prisma.session.findFirst({
+        where: { refreshToken: newTokens.refreshToken },
+      });
+      if (newSession) {
+        await this.prisma.session.update({
+          where: { id: newSession.id },
+          data: { tokenFamily, rotationCount: 0 },
+        });
+      }
+
+      // Log token rotation
+      await this.logAudit(user.tenantId, user.id, 'token_refresh', 'Session', newSession?.id || '',
+        { tokenFamily }, { action: 'refresh_rotation' });
+
+      return newTokens;
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -229,6 +270,58 @@ export class AuthService {
       where: { refreshToken, userId },
       data: { isRevoked: true, revokedAt: new Date() },
     });
+  }
+
+  async logoutAll(userId: string, currentRefreshToken?: string): Promise<number> {
+    // Revoke all sessions except the current one (if provided)
+    const result = await this.prisma.session.updateMany({
+      where: {
+        userId,
+        isRevoked: false,
+        ...(currentRefreshToken ? { refreshToken: { not: currentRefreshToken } } : {}),
+      },
+      data: { isRevoked: true, revokedAt: new Date() },
+    });
+
+    // Get user for audit log
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user) {
+      await this.logAudit(user.tenantId, userId, 'logout_all', 'Session', userId,
+        { revokedCount: result.count }, { action: 'logout_all_sessions' });
+    }
+
+    return result.count;
+  }
+
+  async logoutAllDevices(userId: string, deviceId?: string): Promise<number> {
+    const where: any = { userId, isRevoked: false };
+    if (deviceId) {
+      where.deviceId = deviceId;
+    }
+
+    const result = await this.prisma.session.updateMany({
+      where,
+      data: { isRevoked: true, revokedAt: new Date() },
+    });
+
+    return result.count;
+  }
+
+  async getActiveSessions(userId: string): Promise<any[]> {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId, isRevoked: false },
+      select: {
+        id: true,
+        deviceName: true,
+        ipAddress: true,
+        userAgent: true,
+        createdAt: true,
+        refreshTokenExpiry: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sessions;
   }
 
   async enableMfa(userId: string): Promise<{ secret: string; qrCode: string }> {

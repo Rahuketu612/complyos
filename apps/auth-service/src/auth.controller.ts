@@ -65,6 +65,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Logout and revoke session' })
   async logout(
     @CurrentUser() user: any,
@@ -72,6 +73,44 @@ export class AuthController {
   ) {
     await this.authService.logout(dto.refreshToken, user.id);
     return { success: true };
+  }
+
+  @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Logout from all other sessions' })
+  async logoutAll(
+    @CurrentUser() user: any,
+    @Body('refreshToken') refreshToken?: string,
+  ) {
+    const count = await this.authService.logoutAll(user.id, refreshToken);
+    return { success: true, revokedSessions: count };
+  }
+
+  @Post('logout-devices')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Logout from all devices or specific device' })
+  async logoutDevices(
+    @CurrentUser() user: any,
+    @Body('deviceId') deviceId?: string,
+  ) {
+    const count = await this.authService.logoutAllDevices(user.id, deviceId);
+    return { success: true, revokedSessions: count };
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Get active sessions' })
+  async getSessions(@CurrentUser() user: any) {
+    const sessions = await this.authService.getActiveSessions(user.id);
+    return { sessions };
   }
 
   @Get('profile')

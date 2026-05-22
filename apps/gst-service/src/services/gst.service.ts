@@ -39,7 +39,7 @@ export class GstService {
     });
   }
 
-  async createReturn(businessId: string, dto: CreateReturnDto) {
+  async createReturn(businessId: string, dto: CreateReturnDto, tenantId: string, userId?: string) {
     // Validate business exists
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
@@ -85,6 +85,13 @@ export class GstService {
     await this.createTimelineEvent(business.gstin, businessId, 'return_filed', {
       form: dto.formType,
       period: dto.taxPeriod,
+      status: dto.status,
+    });
+
+    // Audit log for GST filing action
+    await this.logAudit(tenantId, userId, 'gst_return_filed', 'GstReturn', gstReturn.id, {
+      formType: dto.formType,
+      taxPeriod: dto.taxPeriod,
       status: dto.status,
     });
 
@@ -440,5 +447,25 @@ export class GstService {
       notice_received: 'GST Notice Received',
     };
     return titles[eventType] || 'GST Activity';
+  }
+
+  private async logAudit(
+    tenantId: string,
+    userId: string | undefined,
+    action: string,
+    entityType: string,
+    entityId: string,
+    values: any,
+  ): Promise<void> {
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action,
+        entityType,
+        entityId,
+        newValues: values,
+      },
+    }).catch(() => {});
   }
 }

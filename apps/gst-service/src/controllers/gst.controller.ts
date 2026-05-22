@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Header } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { GstService } from '../services/gst.service';
 import { CreateReturnDto, ReturnFilterDto, NoticeFilterDto } from '../dto/create-return.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -29,12 +30,14 @@ export class GstController {
   }
 
   @Post('returns')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
   @ApiOperation({ summary: 'Record GST return' })
   async createReturn(
     @Param('businessId') businessId: string,
     @Body() dto: CreateReturnDto,
+    @CurrentUser() user: any,
   ) {
-    return this.gstService.createReturn(businessId, dto);
+    return this.gstService.createReturn(businessId, dto, user.tenantId, user.id);
   }
 
   @Get('returns/dashboard')
