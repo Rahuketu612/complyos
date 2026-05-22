@@ -4,9 +4,9 @@ import os
 import json
 from typing import Dict, List, Any, Optional
 import openai
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
-from langchain.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate
 
 class LLMService:
     """Main LLM service for compliance queries."""
