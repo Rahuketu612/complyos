@@ -13,6 +13,7 @@ import {
   CheckCircle2, Clock, Briefcase, Bell, AlertCircle,
   FileWarning, ArrowUpRight, ArrowDownRight, Loader2
 } from "lucide-react"
+import { AIInsightsWidget } from "@/components/ai/ai-insights-widget"
 
 // Types
 interface Stats {
@@ -268,17 +269,9 @@ export default function DashboardPage() {
       </div>
       <Button variant="outline" onClick={() => router.push('/workspaces')}>View All Workspaces</Button>
 
-      {/* MSME Risk Alerts + Recent Notices */}
+      {/* AI Insights + Recent Notices */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <WidgetBox title="MSME Risk Alerts" icon={AlertTriangle} color="bg-orange-500">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
-              <div><div className="text-2xl font-bold text-orange-600">0</div><div className="text-sm text-muted-foreground">MSME Alerts</div></div>
-              <AlertTriangle className="h-8 w-8 text-orange-500" />
-            </div>
-            <p className="text-sm text-muted-foreground text-center py-4">No MSME alerts</p>
-          </div>
-        </WidgetBox>
+        <AIInsightsWidget className="h-full" />
 
         <WidgetBox title="Recent Notices" icon={Bell} color="bg-red-500">
           <div className="space-y-4">

@@ -62,6 +62,7 @@ model Tenant {
   userNotifications UserNotification[]
   notices       Notice[]
   noticeActivities NoticeActivity[]
+  aiActionLogs  AIActionLog[]
 
   @@map("tenants")
 }
@@ -138,6 +139,7 @@ model User {
   noticeActivities NoticeActivity[]
   linkedDocuments NoticeDocument[] @relation("DocLinker")
   linkedTasks NoticeTask[] @relation("TaskLinker")
+  aiActionLogs AIActionLog[]
 
   @@unique([tenantId, email])
   @@map("users")
@@ -1150,6 +1152,7 @@ model ClientWorkspace {
   tasks      ComplianceTask[]
   userNotifications UserNotification[]
   notices     Notice[]
+  aiActionLogs AIActionLog[]
 
   @@unique([firmId, businessId])
   @@map("client_workspaces")
@@ -1526,7 +1529,86 @@ model NoticeActivity {
 }
 
 // ============================================
-// NOTICE-DOCUMENT LINKING
+// AI COMPLIANCE ASSISTANT
+// ============================================
+
+enum AIPromptType {
+  NOTICE_SUMMARIZE
+  NOTICE_SUGGEST_TASKS
+  DASHBOARD_INSIGHTS
+  DOCUMENT_TAG
+  COMPLIANCE_ADVICE
+  CHAT
+}
+
+enum AIEntityType {
+  NOTICE
+  TASK
+  BUSINESS
+  DOCUMENT
+  WORKSPACE
+  VENDOR
+  RETURN
+}
+
+enum AIFeatureFlag {
+  ALL
+  INSIGHTS_ONLY
+  SUMMARIZE_ONLY
+  DISABLED
+}
+
+model AIActionLog {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String?
+  userId      String
+
+  // Action Details
+  promptType  AIPromptType
+  entityType  AIEntityType?
+  entityId    String?
+
+  // Model & Provider
+  provider    String? // openai, anthropic, local, mock
+  modelUsed   String?
+
+  // Token Usage
+  promptTokens    Int?
+  completionTokens Int?
+  totalTokens     Int?
+
+  // Performance
+  executionTimeMs Int?
+
+  // Request/Response
+  prompt       String?
+  response     String?
+  errorMessage String?
+
+  // Result
+  success      Boolean @default(true)
+
+  // Correlation
+  correlationId String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  user      User   @relation(fields: [userId], references: [id])
+  workspace ClientWorkspace? @relation(fields: [workspaceId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([userId, promptType])
+  @@index([entityType, entityId])
+  @@index([correlationId])
+  @@map("ai_action_logs")
+}
+
+// ============================================
+// NOTICE-DOCUMENT LINKING (already defined above)
 // ============================================
 
 model NoticeDocument {

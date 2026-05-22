@@ -13,8 +13,9 @@ import {
   FileText, AlertTriangle, AlertCircle, CheckCircle2,
   Clock, Calendar, DollarSign, User, Users, Link,
   Send, Plus, ChevronLeft, Loader2, X, Tag,
-  Paperclip, CheckSquare, Activity, ArrowRight
+  Paperclip, CheckSquare, Activity, ArrowRight, Brain, Sparkles
 } from "lucide-react"
+import { AILoadingSpinner } from "@/components/ai/ai-insights-widget"
 
 // Types
 interface NoticeActivity {
@@ -185,10 +186,26 @@ export default function NoticeDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState<"timeline" | "documents" | "tasks">("timeline")
 
+  // AI State
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSummary, setAiSummary] = useState<any>(null)
+  const [aiSuggestions, setAiSuggestions] = useState<any[]>([])
+  const [aiStatus, setAiStatus] = useState<any>(null)
+
   useEffect(() => {
     if (!isAuthenticated) { router.push("/"); return }
     fetchNotice()
+    fetchAIStatus()
   }, [isAuthenticated, router, noticeId])
+
+  const fetchAIStatus = async () => {
+    try {
+      const response = await api.get<any>('/api/ai/status')
+      setAiStatus(response)
+    } catch (err) {
+      console.error("AI status error:", err)
+    }
+  }
 
   const fetchNotice = async () => {
     try {
@@ -246,6 +263,36 @@ export default function NoticeDetailPage() {
     }
   }
 
+  const handleSummarizeNotice = async () => {
+    if (!aiStatus?.enabled || aiLoading) return
+    try {
+      setAiLoading(true)
+      const response = await api.post<any>(`/api/ai/notices/${noticeId}/summarize`)
+      if (response.success && response.data) {
+        setAiSummary(response.data)
+      }
+    } catch (err) {
+      console.error("AI summarize error:", err)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const handleSuggestTasks = async () => {
+    if (!aiStatus?.enabled || aiLoading) return
+    try {
+      setAiLoading(true)
+      const response = await api.post<any>(`/api/ai/notices/${noticeId}/suggest-tasks`)
+      if (response.success && response.data) {
+        setAiSuggestions(Array.isArray(response.data) ? response.data : [response.data])
+      }
+    } catch (err) {
+      console.error("AI suggest tasks error:", err)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   if (loading || !notice) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -296,6 +343,28 @@ export default function NoticeDetailPage() {
           )}>
             {notice.severity}
           </span>
+          {aiStatus?.enabled && (
+            <div className="flex items-center gap-1 ml-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSummarizeNotice}
+                disabled={aiLoading}
+              >
+                {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Summarize
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSuggestTasks}
+                disabled={aiLoading}
+              >
+                <Brain className="h-4 w-4" />
+                Suggest Tasks
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -379,6 +448,86 @@ export default function NoticeDetailPage() {
                       <div className="text-2xl font-bold text-red-700">₹{(notice.totalLiability || 0).toLocaleString()}</div>
                       <div className="text-xs text-red-600">Total</div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Summary Panel */}
+              {aiSummary && (
+                <div className="p-4 bg-purple-50/50 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                    <label className="text-sm font-medium">AI Summary</label>
+                    {aiSummary.isMock && (
+                      <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded">Demo</span>
+                    )}
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    {aiSummary.riskLevel && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Risk Level:</span>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-xs font-medium",
+                          aiSummary.riskLevel === 'HIGH' ? "bg-red-100 text-red-700" :
+                          aiSummary.riskLevel === 'MEDIUM' ? "bg-yellow-100 text-yellow-700" :
+                          "bg-green-100 text-green-700"
+                        )}>{aiSummary.riskLevel}</span>
+                      </div>
+                    )}
+                    {aiSummary.deadlines && aiSummary.deadlines.length > 0 && (
+                      <div>
+                        <span className="font-medium">Key Deadlines:</span>
+                        <ul className="mt-1 space-y-1">
+                          {aiSummary.deadlines.map((d: string, i: number) => (
+                            <li key={i} className="flex items-center gap-1 text-orange-600">
+                              <Clock className="h-3 w-3" /> {d}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {aiSummary.authority && (
+                      <div>
+                        <span className="font-medium">Authority:</span> {aiSummary.authority}
+                      </div>
+                    )}
+                    {aiSummary.actionRequired && (
+                      <div>
+                        <span className="font-medium">Required Action:</span> {aiSummary.actionRequired}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Suggested Tasks Panel */}
+              {aiSuggestions.length > 0 && (
+                <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Brain className="h-5 w-5 text-blue-600" />
+                    <label className="text-sm font-medium">AI Suggested Tasks</label>
+                    <span className="text-xs text-muted-foreground">Click + to create</span>
+                  </div>
+                  <div className="space-y-2">
+                    {aiSuggestions.map((task, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-white rounded border">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">{task.title}</div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded",
+                              task.priority === 'HIGH' ? "bg-red-100 text-red-700" :
+                              task.priority === 'MEDIUM' ? "bg-yellow-100 text-yellow-700" :
+                              "bg-blue-100 text-blue-700"
+                            )}>{task.priority}</span>
+                            <span>Due: {task.dueDate}</span>
+                          </div>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => {}}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
