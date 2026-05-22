@@ -17,6 +17,7 @@ export class ProxyService {
     { path: '/api/businesses', target: 'http://localhost:3002', timeout: 30000 },
     { path: '/api/gst', target: 'http://localhost:3003', timeout: 30000 },
     { path: '/api/vendors', target: 'http://localhost:3004', timeout: 30000 },
+    { path: '/api/ca', target: 'http://localhost:3007', timeout: 30000 },
   ];
 
   constructor() {

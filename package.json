@@ -2,10 +2,27 @@
   "name": "complyos",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "db:generate": "prisma generate --schema packages/database/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema packages/database/schema.prisma",
+    "db:push": "prisma db push --schema packages/database/schema.prisma",
+    "db:seed": "ts-node --transpile-only -r tsconfig-paths/register packages/database/seed.ts",
+    "db:studio": "prisma studio --schema packages/database/schema.prisma",
+    "db:validate": "prisma validate --schema packages/database/schema.prisma",
+    "build:services": "npm run build --workspace=@complyos/ca-service",
+    "build:all": "npm run build --workspaces --if-present"
+  },
   "dependencies": {
     "@prisma/client": "5.22.0"
   },
   "devDependencies": {
-    "prisma": "5.22.0"
-  }
+    "prisma": "5.22.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

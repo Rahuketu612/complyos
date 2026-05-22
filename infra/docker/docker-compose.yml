@@ -190,6 +190,36 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  ca-service:
+    build:
+      context: ./apps/ca-service
+      dockerfile: Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DATABASE_URL=postgresql://complyos:${POSTGRES_PASSWORD:-complyos_dev_password}@postgres:5432/complyos
+      - PORT=3007
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3007/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   api-gateway:
     build:
       context: ./apps/api-gateway
@@ -204,6 +234,7 @@ services:
       - BUSINESS_SERVICE_URL=http://business-service:3002
       - GST_SERVICE_URL=http://gst-service:3003
       - VENDOR_SERVICE_URL=http://vendor-service:3004
+      - CA_SERVICE_URL=http://ca-service:3007
     depends_on:
       auth-service:
         condition: service_healthy
@@ -212,6 +243,8 @@ services:
       gst-service:
         condition: service_healthy
       vendor-service:
+        condition: service_healthy
+      ca-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
