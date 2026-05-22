@@ -242,7 +242,7 @@ export class AuthService {
       const newTokens = await this.generateTokens(user, user.tenantId);
 
       // Create new session with token family
-      await this.createSession(user.id, user.tenantId, newTokens.refreshToken, existingSession?.ipAddress);
+      await this.createSession(user.id, user.tenantId, newTokens.refreshToken, existingSession?.ipAddress ?? undefined);
 
       // Update session with token family
       const newSession = await this.prisma.session.findFirst({
