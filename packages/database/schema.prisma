@@ -60,6 +60,8 @@ model Tenant {
   documentsVault DocumentVault[]
   complianceTasks ComplianceTask[]
   userNotifications UserNotification[]
+  notices       Notice[]
+  noticeActivities NoticeActivity[]
 
   @@map("tenants")
 }
@@ -132,6 +134,10 @@ model User {
   userNotifications UserNotification[]
   uploadedDocuments DocumentVault[]
   conversations AiConversation[]
+  assignedNotices Notice[] @relation("NoticeAssignee")
+  noticeActivities NoticeActivity[]
+  linkedDocuments NoticeDocument[] @relation("DocLinker")
+  linkedTasks NoticeTask[] @relation("TaskLinker")
 
   @@unique([tenantId, email])
   @@map("users")
@@ -395,104 +401,6 @@ model GstReturn {
 
   @@unique([businessId, formType, taxPeriod])
   @@map("gst_returns")
-}
-
-// ============================================
-// GST NOTICES & COMMUNICATIONS
-// ============================================
-
-enum NoticeType {
-  gstr1_not_filed
-  gstr3b_not_filed
-  tax_demand
-  refund_rejection
-  ITC_mismatch
-  scrutiny
-  audit
-  inspection
-  summons
-  penalty
-  compoundable_offense
-  cancellation
-  provisional_attachment
-  OTHER
-}
-
-enum NoticeSeverity {
-  info
-  low
-  medium
-  high
-  critical
-}
-
-enum NoticeStatus {
-  received
-  viewed
-  under_review
-  response_drafting
-  response_submitted
-  hearing_scheduled
-  resolved
-  appeal_filed
-  pending_payment
-  disputed
-}
-
-model Notice {
-  id         String @id @default(uuid())
-  businessId String
-
-  // Notice Identification
-  noticeNumber    String?
-  referenceNumber String?
-  noticeDate      DateTime?
-  noticeType      NoticeType
-  noticeCategory  String?
-
-  // Severity & Status
-  severity NoticeSeverity @default(medium)
-  status   NoticeStatus   @default(received)
-
-  // Amount
-  demandedAmount Decimal @default(0)
-  penaltyAmount  Decimal @default(0)
-  totalAmount    Decimal @default(0)
-  paidAmount     Decimal @default(0)
-
-  // Key Dates
-  dueDate         DateTime?
-  responseDueDate DateTime?
-  hearingDate     DateTime?
-  resolvedDate    DateTime?
-
-  // Source
-  source          String  @default("portal") // portal, email, manual
-  sourceReference String?
-
-  // Description
-  title       String?
-  description String?
-
-  // AI Analysis
-  aiSummary     String?
-  aiRiskLevel   String?
-  aiActionItems Json? // []
-  aiConfidence  Float?
-
-  // Response
-  responseDate   DateTime?
-  responseDocUrl String?
-
-  // Timeline Events
-  events Json? // [{date, action, by}]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  business Business @relation(fields: [businessId], references: [id])
-
-  @@map("notices")
 }
 
 // ============================================
@@ -1241,6 +1149,7 @@ model ClientWorkspace {
   documents  DocumentVault[]
   tasks      ComplianceTask[]
   userNotifications UserNotification[]
+  notices     Notice[]
 
   @@unique([firmId, businessId])
   @@map("client_workspaces")
@@ -1340,6 +1249,7 @@ model DocumentVault {
   workspace ClientWorkspace @relation(fields: [workspaceId], references: [id])
   tenant   Tenant    @relation(fields: [tenantId], references: [id])
   uploader User      @relation(fields: [uploadedBy], references: [id])
+  noticeLinks NoticeDocument[]
 
   @@index([workspaceId, category])
   @@index([workspaceId, uploadedBy])
@@ -1416,6 +1326,7 @@ model ComplianceTask {
   assignee   User?            @relation("TaskAssignee", fields: [assignedTo], references: [id])
   creator    User             @relation("TaskCreator", fields: [createdBy], references: [id])
   business   Business?        @relation(fields: [linkedBusinessId], references: [id])
+  noticeLinks NoticeTask[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, dueDate])
@@ -1468,4 +1379,187 @@ model UserNotification {
   @@index([userId, isRead])
   @@index([tenantId, createdAt])
   @@map("user_notifications")
+}
+
+// ============================================
+// NOTICE MANAGEMENT (CA Practice)
+// ============================================
+
+enum NoticeStatus {
+  RECEIVED
+  UNDER_REVIEW
+  CLIENT_PENDING
+  DRAFT_PREPARED
+  RESPONSE_FILED
+  CLOSED
+}
+
+enum NoticeSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum NoticeType {
+  GST_SCRUTINY
+  GST_DEMAND
+  GST_ASSESSMENT
+  GST_PENALTY
+  GST_REFUND
+  GST_ARC
+  INCOME_TAX_SCRUTINY
+  INCOME_TAX_ASSESSMENT
+  INCOME_TAX_DEMAND
+  INCOME_TAX_PENALTY
+  TDS_DEFAULT
+  ROC_NON_COMPLIANCE
+  EPFO_DEMAND
+  ESIC_DEMAND
+  OTHER
+}
+
+model Notice {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+  businessId  String?
+
+  // Notice Identity
+  noticeNumber String? // Official notice number (e.g., "C.no.Ahd-EX-006/2024-25/1234")
+  noticeType   NoticeType @default(GST_SCRUTINY)
+
+  // Issuing Authority
+  issuingAuthority String? // e.g., "Superintendent, Ward 6, Ahmedabad"
+  assessmentYear  String? // e.g., "2022-23"
+
+  // Severity & Status
+  severity       NoticeSeverity @default(MEDIUM)
+  status         NoticeStatus   @default(RECEIVED)
+
+  // Dates
+  receivedDate     DateTime @default(now())
+  responseDueDate  DateTime?
+  closureDate      DateTime?
+
+  // Financial Impact
+  demandAmount  Decimal?  @db.Decimal(15, 2)
+  penaltyAmount Decimal?  @db.Decimal(15, 2)
+  interestAmount Decimal? @db.Decimal(15, 2)
+  totalLiability  Decimal? @db.Decimal(15, 2)
+
+  // Description
+  subject        String?
+  summary        String?
+  groundsOfNotice String? // Text content of notice
+
+  // Assignment
+  assignedTo String? // userId
+  assignedAt DateTime?
+
+  // Resolution
+  resolutionNotes String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace     ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  business      Business?        @relation(fields: [businessId], references: [id])
+  assignee      User?            @relation("NoticeAssignee", fields: [assignedTo], references: [id])
+  activities    NoticeActivity[]
+  linkedDocuments NoticeDocument[]
+  linkedTasks    NoticeTask[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, severity])
+  @@index([responseDueDate])
+  @@index([assignedTo])
+  @@map("notices")
+}
+
+enum NoticeActivityAction {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  UNASSIGNED
+  COMMENT
+  DOCUMENT_LINKED
+  DOCUMENT_UNLINKED
+  TASK_CREATED
+  RESPONSE_FILED
+  CLOSED
+  REOPENED
+  UPDATED
+}
+
+model NoticeActivity {
+  id          String @id @default(uuid())
+  noticeId    String
+  tenantId    String
+
+  // Activity Details
+  action      NoticeActivityAction
+  comment     String?
+  previousValue String? // For status changes, etc.
+  newValue    String?
+
+  // Correlation for tracking related activities
+  correlationId String?
+
+  // Metadata
+  metadata Json? // Additional structured data
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  notice   Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  user     User   @relation(fields: [createdBy], references: [id])
+  createdBy String
+
+  @@index([noticeId, createdAt])
+  @@map("notice_activities")
+}
+
+// ============================================
+// NOTICE-DOCUMENT LINKING
+// ============================================
+
+model NoticeDocument {
+  id          String   @id @default(uuid())
+  noticeId    String
+  documentId  String
+  linkedBy    String
+  linkedAt    DateTime @default(now())
+  notes       String?
+
+  notice   Notice      @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  document DocumentVault @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  linker   User         @relation("DocLinker", fields: [linkedBy], references: [id])
+
+  @@unique([noticeId, documentId])
+  @@map("notice_documents")
+}
+
+// ============================================
+// NOTICE-TASK LINKING
+// ============================================
+
+model NoticeTask {
+  id        String   @id @default(uuid())
+  noticeId  String
+  taskId    String
+  linkedBy  String
+  linkedAt  DateTime @default(now())
+
+  notice Notice         @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  task   ComplianceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  linker User            @relation("TaskLinker", fields: [linkedBy], references: [id])
+
+  @@unique([noticeId, taskId])
+  @@map("notice_tasks")
 }

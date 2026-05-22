@@ -6,10 +6,12 @@ import { WorkspaceService } from './services/workspace.service';
 import { TaskService } from './services/task.service';
 import { DocumentVaultService } from './services/document-vault.service';
 import { NotificationService } from './services/notification.service';
+import { NoticeService } from './services/notice.service';
 import { WorkspaceController } from './controllers/workspace.controller';
 import { TaskController } from './controllers/task.controller';
 import { DocumentVaultController } from './controllers/document-vault.controller';
 import { NotificationController } from './controllers/notification.controller';
+import { NoticeController } from './controllers/notice.controller';
 import { DashboardController } from './controllers/dashboard.controller';
 import { HealthController } from './controllers/health.controller';
 import { AuditService } from './services/audit.service';
@@ -27,6 +29,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     TaskController,
     DocumentVaultController,
     NotificationController,
+    NoticeController,
     DashboardController,
   ],
   providers: [
@@ -35,6 +38,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     TaskService,
     DocumentVaultService,
     NotificationService,
+    NoticeService,
     AuditService,
     JwtStrategy,
     JwtAuthGuard,
@@ -44,6 +48,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     TaskService,
     DocumentVaultService,
     NotificationService,
+    NoticeService,
     JwtAuthGuard,
   ],
 })

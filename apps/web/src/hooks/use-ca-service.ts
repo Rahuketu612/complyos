@@ -339,3 +339,178 @@ export function useCaFirms() {
 
   return { firms, loading, error }
 }
+
+// ============ Notices Hook ============
+
+export interface Notice {
+  id: string
+  noticeNumber?: string
+  noticeType: string
+  issuingAuthority?: string
+  assessmentYear?: string
+  severity: string
+  status: string
+  receivedDate: string
+  responseDueDate?: string
+  demandAmount?: number
+  penaltyAmount?: number
+  totalLiability?: number
+  subject: string
+  summary?: string
+  workspace: { id: string; name: string; firm?: { name: string } }
+  business?: { id: string; name: string; pan: string }
+  assignee?: { id: string; firstName: string; lastName: string; email: string }
+  _count?: { activities: number; linkedDocuments: number; linkedTasks: number }
+}
+
+export interface NoticeActivity {
+  id: string
+  action: string
+  comment?: string
+  previousValue?: string
+  newValue?: string
+  createdAt: string
+  user: { id: string; firstName: string; lastName: string; email: string }
+}
+
+export interface NoticeDetail extends Notice {
+  closureDate?: string
+  interestAmount?: number
+  groundsOfNotice?: string
+  resolutionNotes?: string
+  assignedAt?: string
+  createdAt: string
+  updatedAt: string
+  activities: NoticeActivity[]
+  linkedDocuments: {
+    id: string
+    documentId: string
+    linkedAt: string
+    notes?: string
+    document: { id: string; fileName: string; fileType: string; category: string }
+    linker: { id: string; firstName: string; lastName: string }
+  }[]
+  linkedTasks: {
+    id: string
+    taskId: string
+    linkedAt: string
+    task: {
+      id: string
+      title: string
+      status: string
+      priority: string
+      dueDate?: string
+      assignee?: { id: string; firstName: string; lastName: string }
+    }
+    linker: { id: string; firstName: string; lastName: string }
+  }[]
+}
+
+export interface NoticeStats {
+  total: number
+  byStatus: Record<string, number>
+  bySeverity: Record<string, number>
+  overdue: number
+  dueThisWeek: number
+  highSeverity: number
+}
+
+export function useNotices(filters?: { status?: string; severity?: string; noticeType?: string; search?: string }) {
+  const [notices, setNotices] = useState<Notice[]>([])
+  const [stats, setStats] = useState<NoticeStats>({ total: 0, byStatus: {}, bySeverity: {}, overdue: 0, dueThisWeek: 0, highSeverity: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchNotices = async () => {
+      try {
+        setLoading(true)
+        const params = new URLSearchParams()
+        if (filters?.status) params.append('status', filters.status)
+        if (filters?.severity) params.append('severity', filters.severity)
+        if (filters?.noticeType) params.append('noticeType', filters.noticeType)
+        if (filters?.search) params.append('search', filters.search)
+        
+        const queryString = params.toString()
+        const endpoint = `/api/notices${queryString ? `?${queryString}` : ''}`
+        
+        const response = await api.get<{ notices: Notice[]; summary: NoticeStats }>(endpoint)
+        setNotices(response.notices || [])
+        setStats(response.summary || { total: 0, byStatus: {}, bySeverity: {}, overdue: 0, dueThisWeek: 0, highSeverity: 0 })
+        setError(null)
+      } catch (err: any) {
+        console.error('Notices fetch error:', err)
+        setError(err.message || 'Failed to load notices')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchNotices()
+  }, [filters?.status, filters?.severity, filters?.noticeType, filters?.search])
+
+  return { notices, stats, loading, error }
+}
+
+export function useNoticeDetail(noticeId: string) {
+  const [notice, setNotice] = useState<NoticeDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchNotice = async () => {
+      try {
+        setLoading(true)
+        const response = await api.get<NoticeDetail>(`/api/notices/${noticeId}`)
+        setNotice(response)
+        setError(null)
+      } catch (err: any) {
+        console.error('Notice fetch error:', err)
+        setError(err.message || 'Failed to load notice')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (noticeId) fetchNotice()
+  }, [noticeId])
+
+  const updateStatus = async (status: string) => {
+    try {
+      await api.put(`/api/notices/${noticeId}`, { status })
+      setNotice(prev => prev ? { ...prev, status } : null)
+      return true
+    } catch (err) {
+      console.error('Status update error:', err)
+      return false
+    }
+  }
+
+  const addComment = async (comment: string) => {
+    try {
+      await api.post(`/api/notices/${noticeId}/comments`, { comment })
+      // Refetch to get updated activities
+      const response = await api.get<NoticeDetail>(`/api/notices/${noticeId}`)
+      setNotice(response)
+      return true
+    } catch (err) {
+      console.error('Comment error:', err)
+      return false
+    }
+  }
+
+  const createTask = async (data: { title: string; description?: string; priority?: string; dueDate?: string }) => {
+    try {
+      await api.post(`/api/notices/${noticeId}/tasks`, data)
+      // Refetch
+      const response = await api.get<NoticeDetail>(`/api/notices/${noticeId}`)
+      setNotice(response)
+      return true
+    } catch (err) {
+      console.error('Create task error:', err)
+      return false
+    }
+  }
+
+  return { notice, loading, error, updateStatus, addComment, createTask }
+}

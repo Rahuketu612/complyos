@@ -191,6 +191,218 @@ async function main() {
   });
   console.log('Created sample notification');
 
+  // =============================================
+  // NOTICE MANAGEMENT SEED DATA
+  // =============================================
+
+  // Notice 1: GST Scrutiny Notice - HIGH severity
+  const notice1 = await prisma.notice.upsert({
+    where: { id: 'notice-gst-scrutiny-001' },
+    update: {},
+    create: {
+      id: 'notice-gst-scrutiny-001',
+      workspaceId: workspace.id,
+      tenantId: tenant.id,
+      businessId: business.id,
+      noticeNumber: 'C.No.AHD-EX-006/2025-26/SCR-456',
+      noticeType: 'GST_SCRUTINY',
+      issuingAuthority: 'Superintendent, Ward 6, Ahmedabad',
+      assessmentYear: '2024-25',
+      severity: 'HIGH',
+      status: 'UNDER_REVIEW',
+      receivedDate: new Date('2026-04-15'),
+      responseDueDate: new Date('2026-05-28'),
+      demandAmount: 125000,
+      subject: 'Scrutiny of Annual Return GSTR-9 for FY 2023-24',
+      summary: 'Your GSTR-9 return for FY 2023-24 has been selected for scrutiny. discrepancies in ITC claimed vs GSTR-2A.',
+      groundsOfNotice: 'The following discrepancies have been observed in your Annual Return GSTR-9:\n1. ITC claimed in GSTR-9: ₹15,75,000\n2. ITC available as per GSTR-2A: ₹14,50,000\n3. Difference: ₹1,25,000\n\nYou are required to submit the following documents along with your response:\n- Reconciliation statement\n- Invoices for the disputed ITC\n- Bank statements for the period',
+      assignedTo: user.id,
+      assignedAt: new Date('2026-04-16'),
+      totalLiability: 125000,
+    },
+  });
+
+  // Notice 1 Activities
+  const notice1Activities = [
+    { action: 'CREATED', comment: 'GST scrutiny notice received from Ward 6' },
+    { action: 'ASSIGNED', comment: 'Notice assigned for review' },
+    { action: 'STATUS_CHANGED', comment: 'Status changed to UNDER_REVIEW', previousValue: 'RECEIVED', newValue: 'UNDER_REVIEW' },
+    { action: 'COMMENT', comment: 'Requesting client to provide GSTR-2A reconciliation for verification' },
+  ];
+
+  for (let i = 0; i < notice1Activities.length; i++) {
+    await prisma.noticeActivity.upsert({
+      where: { id: `notice1-activity-${i + 1}` },
+      update: {},
+      create: {
+        id: `notice1-activity-${i + 1}`,
+        noticeId: notice1.id,
+        tenantId: tenant.id,
+        action: notice1Activities[i].action as any,
+        comment: notice1Activities[i].comment,
+        previousValue: notice1Activities[i].previousValue,
+        newValue: notice1Activities[i].newValue,
+        createdBy: user.id,
+      },
+    });
+  }
+
+  // Notice 2: GST Assessment Notice - CRITICAL severity
+  const notice2 = await prisma.notice.upsert({
+    where: { id: 'notice-gst-assessment-001' },
+    update: {},
+    create: {
+      id: 'notice-gst-assessment-001',
+      workspaceId: workspace.id,
+      tenantId: tenant.id,
+      businessId: business.id,
+      noticeNumber: 'C.No.AHD-EX-006/2025-26/ASC-789',
+      noticeType: 'GST_ASSESSMENT',
+      issuingAuthority: 'Additional Commissioner, LTU Ahmedabad',
+      assessmentYear: '2022-23',
+      severity: 'CRITICAL',
+      status: 'CLIENT_PENDING',
+      receivedDate: new Date('2026-03-20'),
+      responseDueDate: new Date('2026-05-25'),
+      demandAmount: 450000,
+      penaltyAmount: 50000,
+      interestAmount: 35000,
+      subject: 'Summary Assessment under Section 73 - FY 2022-23',
+      summary: 'Best judgment assessment completed due to non-filing of GSTR-3B for 6 months.',
+      groundsOfNotice: 'Summary Assessment under Section 73 of CGST Act, 2017:\n\nPeriod: April 2022 to September 2022\n\nTax liability determined: ₹4,50,000\nPenalty under Section 122: ₹50,000\nInterest @ 18% p.a.: ₹35,000\nTotal demand: ₹5,35,000\n\nDefault: Failure to file GSTR-3B returns for 6 consecutive tax periods',
+      assignedTo: user.id,
+      assignedAt: new Date('2026-03-21'),
+      totalLiability: 535000,
+    },
+  });
+
+  // Notice 2 Activities
+  const notice2Activities = [
+    { action: 'CREATED', comment: 'Assessment notice - critical demand' },
+    { action: 'ASSIGNED', comment: 'Escalated to senior CA' },
+    { action: 'STATUS_CHANGED', comment: 'Pending client documents', previousValue: 'RECEIVED', newValue: 'CLIENT_PENDING' },
+    { action: 'COMMENT', comment: 'Client needs to arrange ₹5.35 Lakhs for payment. Requesting extension from authority.' },
+    { action: 'COMMENT', comment: 'Meeting scheduled with client on 25th May to finalize response strategy' },
+  ];
+
+  for (let i = 0; i < notice2Activities.length; i++) {
+    await prisma.noticeActivity.upsert({
+      where: { id: `notice2-activity-${i + 1}` },
+      update: {},
+      create: {
+        id: `notice2-activity-${i + 1}`,
+        noticeId: notice2.id,
+        tenantId: tenant.id,
+        action: notice2Activities[i].action as any,
+        comment: notice2Activities[i].comment,
+        previousValue: notice2Activities[i].previousValue,
+        newValue: notice2Activities[i].newValue,
+        createdBy: user.id,
+      },
+    });
+  }
+
+  // Notice 3: GST Penalty Notice - MEDIUM severity
+  const notice3 = await prisma.notice.upsert({
+    where: { id: 'notice-gst-penalty-001' },
+    update: {},
+    create: {
+      id: 'notice-gst-penalty-001',
+      workspaceId: workspace.id,
+      tenantId: tenant.id,
+      businessId: business.id,
+      noticeNumber: 'C.No.AHD-EX-006/2025-26/PN-123',
+      noticeType: 'GST_PENALTY',
+      issuingAuthority: 'Deputy Commissioner, Ward 3, Ahmedabad',
+      assessmentYear: '2024-25',
+      severity: 'MEDIUM',
+      status: 'DRAFT_PREPARED',
+      receivedDate: new Date('2026-05-01'),
+      responseDueDate: new Date('2026-06-15'),
+      penaltyAmount: 25000,
+      subject: 'Penalty under Section 125 for incorrect GST returns',
+      summary: 'Penalty notice for filing returns with incorrect tax liability.',
+      groundsOfNotice: 'Penalty proceedings under Section 125 of CGST Act, 2017:\n\nIncorrect return filed for period Oct 2024:\n- Tax declared: ₹75,000\n- Actual tax liability: ₹82,500\n- Short payment: ₹7,500\n\nPenalty calculated @ 10% of short payment or ₹25,000 whichever is higher: ₹25,000',
+      assignedTo: user.id,
+      assignedAt: new Date('2026-05-02'),
+      totalLiability: 25000,
+    },
+  });
+
+  // Notice 3 Activities
+  const notice3Activities = [
+    { action: 'CREATED', comment: 'Penalty notice received' },
+    { action: 'STATUS_CHANGED', comment: 'Draft response prepared', previousValue: 'RECEIVED', newValue: 'DRAFT_PREPARED' },
+    { action: 'COMMENT', comment: 'Response draft prepared citing genuine mistake and voluntary disclosure' },
+  ];
+
+  for (let i = 0; i < notice3Activities.length; i++) {
+    await prisma.noticeActivity.upsert({
+      where: { id: `notice3-activity-${i + 1}` },
+      update: {},
+      create: {
+        id: `notice3-activity-${i + 1}`,
+        noticeId: notice3.id,
+        tenantId: tenant.id,
+        action: notice3Activities[i].action as any,
+        comment: notice3Activities[i].comment,
+        previousValue: notice3Activities[i].previousValue,
+        newValue: notice3Activities[i].newValue,
+        createdBy: user.id,
+      },
+    });
+  }
+
+  // Notice 4: Income Tax Notice - HIGH severity
+  const notice4 = await prisma.notice.upsert({
+    where: { id: 'notice-it-scrutiny-001' },
+    update: {},
+    create: {
+      id: 'notice-it-scrutiny-001',
+      workspaceId: workspace.id,
+      tenantId: tenant.id,
+      businessId: business.id,
+      noticeNumber: 'ITBA/AST/S/143(1)/2025-26/1045678',
+      noticeType: 'INCOME_TAX_SCRUTINY',
+      issuingAuthority: 'PCIT-8, Mumbai',
+      assessmentYear: '2023-24',
+      severity: 'HIGH',
+      status: 'RECEIVED',
+      receivedDate: new Date('2026-05-10'),
+      responseDueDate: new Date('2026-06-30'),
+      subject: 'Intimation under Section 143(1) - Selected for Scrutiny',
+      summary: 'Income Tax Return for AY 2023-24 has been selected for scrutiny under CASS.',
+      groundsOfNotice: 'Notice under Section 143(2) of the Income Tax Act, 1961:\n\nYour Income Tax Return for Assessment Year 2023-24 has been selected for scrutiny based on Computer Assisted Scrutiny Selection (CASS).\n\nReasons for selection:\n1. High value cash deposits during demonetization period\n2. Variation in GST turnover vs ITR income\n3. TDS discrepancies\n\nYou are required to appear before the Assessing Officer with:\n- Complete books of accounts\n- Bank statements for all accounts\n- GST returns and reconciliation\n- Form 16 and salary slips (if applicable)\n- Investment proofs for claim deductions',
+      assignedTo: null,
+      totalLiability: 0,
+    },
+  });
+
+  // Notice 4 Activities
+  const notice4Activities = [
+    { action: 'CREATED', comment: 'IT scrutiny notice received - needs immediate attention' },
+    { action: 'COMMENT', comment: 'Client needs to be informed urgently - 30 day deadline' },
+  ];
+
+  for (let i = 0; i < notice4Activities.length; i++) {
+    await prisma.noticeActivity.upsert({
+      where: { id: `notice4-activity-${i + 1}` },
+      update: {},
+      create: {
+        id: `notice4-activity-${i + 1}`,
+        noticeId: notice4.id,
+        tenantId: tenant.id,
+        action: notice4Activities[i].action as any,
+        comment: notice4Activities[i].comment,
+        previousValue: notice4Activities[i].previousValue,
+        newValue: notice4Activities[i].newValue,
+        createdBy: user.id,
+      },
+    });
+  }
+
+  console.log('Created 4 notices (3 GST + 1 Income Tax) with activities');
+
   console.log('Database seed completed successfully!');
   console.log('Test credentials: test@complyos.com / password123');
 }

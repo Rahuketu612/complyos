@@ -91,17 +91,44 @@ export class DashboardController {
     // Summary stats
     const stats = {
       totalWorkspaces: workspaces.length,
+      activeWorkspaces: workspaces.filter((w: any) => w.status === 'active').length,
       totalTasks: await this.prisma.complianceTask.count({
         where: { workspaceId: { in: workspaceIds } },
       }),
       pendingTasksCount: pendingTasks.length,
       overdueTasksCount: overdueTasks.length,
+      completedTasksCount: await this.prisma.complianceTask.count({
+        where: { workspaceId: { in: workspaceIds }, status: 'COMPLETED' },
+      }),
       documentsCount: await this.prisma.documentVault.count({
         where: { workspaceId: { in: workspaceIds } },
       }),
       unreadNotifications: await this.prisma.userNotification.count({
         where: { userId, isRead: false },
       }),
+      // Notice stats
+      noticesDueThisWeek: await this.prisma.notice.count({
+        where: {
+          workspaceId: { in: workspaceIds },
+          status: { notIn: ['RESPONSE_FILED', 'CLOSED'] },
+          responseDueDate: { lte: sevenDaysFromNow, gte: now },
+        },
+      }),
+      noticesOverdue: await this.prisma.notice.count({
+        where: {
+          workspaceId: { in: workspaceIds },
+          status: { notIn: ['RESPONSE_FILED', 'CLOSED'] },
+          responseDueDate: { lt: now },
+        },
+      }),
+      noticesHighSeverity: await this.prisma.notice.count({
+        where: {
+          workspaceId: { in: workspaceIds },
+          severity: { in: ['HIGH', 'CRITICAL'] },
+          status: { notIn: ['RESPONSE_FILED', 'CLOSED'] },
+        },
+      }),
+      msmeAlerts: 0,
     };
 
     return {
