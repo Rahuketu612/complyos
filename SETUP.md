@@ -41,10 +41,54 @@ make verify
 ## Prerequisites
 
 - **Node.js 20 LTS** (required - not compatible with Node 22+)
-- Node.js 22+ issues with Prisma v5 engines - use Node 20
+- Prisma 5.22.0 (NOT Prisma 7)
 - Python 3.11+
 - Docker & Docker Compose
 - PostgreSQL client (psql)
+
+## Windows Setup (PowerShell)
+
+```powershell
+# 1. Install Node 20 if needed
+# https://nodejs.org/en/download/
+
+# 2. Clone and open PowerShell in repo root
+cd path/to/complyos
+
+# 3. Start PostgreSQL (Docker Desktop)
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
+
+# 4. Install dependencies per service
+cd apps/auth-service
+npm install
+
+# 5. Generate Prisma client (auto-runs postinstall, or manual)
+# Optional: Override placeholder URL in .env or use env var
+$env:DATABASE_URL = "postgres://postgres:postgres@localhost:5432/complyos"
+npm run prisma:generate
+
+# 6. Build and start
+npm run build
+npm run start:dev
+```
+
+For each service (auth, business, gst, vendor):
+```powershell
+cd apps/auth-service  # or business-service, gst-service, vendor-service
+npm install
+npm run build
+npm run start:dev
+```
+
+### Verify Prisma Client
+
+If you see `@prisma/client did not initialize yet`:
+```powershell
+npm run postinstall
+# Or manually:
+$env:DATABASE_URL = "postgres://placeholder:placeholder@localhost:5432/placeholder"
+npm run prisma:generate
+```
 
 ## Quick Start
 
