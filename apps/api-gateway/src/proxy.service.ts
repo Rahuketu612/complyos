@@ -60,7 +60,19 @@ export class ProxyService {
       const response = await this.client.request(config);
       return response.data;
     } catch (error: any) {
-      this.logger.error(`Proxy error: ${error.message}`);
+      this.logger.error(`Proxy error for ${path}: ${error.message}`);
+      
+      // Tenant isolation: Convert 403 Forbidden to 404 Not Found
+      // This prevents enumeration attacks where an attacker probes for resource existence
+      // by checking if access is denied vs the resource not existing
+      if (error.response?.status === 403) {
+        this.logger.warn(`Converting 403 to 404 for ${path} (tenant isolation)`);
+        throw new HttpException(
+          { statusCode: 404, message: 'Resource not found', error: 'Not Found' },
+          HttpStatus.NOT_FOUND
+        );
+      }
+      
       if (error.response) {
         throw new HttpException(
           error.response.data,

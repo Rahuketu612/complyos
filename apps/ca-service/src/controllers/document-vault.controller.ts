@@ -1,11 +1,13 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DocumentVaultService } from '../services/document-vault.service';
 import { CreateDocumentDto, UpdateDocumentDto, DocumentQueryDto } from '../dto/document.dto';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
 @Controller('documents')
+@UseGuards(JwtAuthGuard)
 export class DocumentVaultController {
   constructor(private documentService: DocumentVaultService) {}
 

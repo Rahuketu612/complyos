@@ -1,11 +1,13 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkspaceService } from '../services/workspace.service';
 import { CreateFirmDto, CreateWorkspaceDto, AddMemberDto } from '../dto/workspace.dto';
 
 @ApiTags('Workspace')
 @ApiBearerAuth()
 @Controller('workspace')
+@UseGuards(JwtAuthGuard)
 export class WorkspaceController {
   constructor(private workspaceService: WorkspaceService) {}
 

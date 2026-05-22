@@ -200,6 +200,7 @@ services:
       - NODE_ENV=${NODE_ENV:-development}
       - DATABASE_URL=postgresql://complyos:${POSTGRES_PASSWORD:-complyos_dev_password}@postgres:5432/complyos
       - PORT=3007
+      - JWT_SECRET=${JWT_SECRET:-changeme-in-production}
     depends_on:
       postgres:
         condition: service_healthy

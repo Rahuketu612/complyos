@@ -71,7 +71,7 @@ export class TaskService {
       action: 'TASK_CREATED',
       entityType: 'ComplianceTask',
       entityId: task.id,
-      metadata: { title: data.title, complianceType: data.complianceType },
+      success: true,
       eventCategory: 'DATA_MODIFICATION',
     });
 

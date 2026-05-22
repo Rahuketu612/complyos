@@ -79,7 +79,7 @@ export class DocumentVaultService {
       action: 'DOCUMENT_UPLOADED',
       entityType: 'DocumentVault',
       entityId: document.id,
-      metadata: { fileName: data.originalName, category: data.category },
+      success: true,
       eventCategory: 'DATA_MODIFICATION',
     });
 

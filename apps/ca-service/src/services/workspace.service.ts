@@ -211,7 +211,7 @@ export class WorkspaceService {
       action: 'MEMBER_ADDED',
       entityType: 'WorkspaceMember',
       entityId: member.id,
-      metadata: { newUserId: newUser.id, role: memberData.role },
+      success: true,
       eventCategory: 'DATA_MODIFICATION',
     });
 

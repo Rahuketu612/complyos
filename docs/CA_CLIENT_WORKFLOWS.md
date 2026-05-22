@@ -498,9 +498,28 @@ Gets quick summary statistics.
 All endpoints enforce strict tenant isolation:
 
 1. All queries include `tenantId` filtering
-2. Cross-tenant access returns 404 (not 403) to prevent enumeration
+2. Cross-tenant access returns **404 Not Found** (not 403 Forbidden)
+   - This prevents enumeration attacks where attackers probe for resource existence
+   - The API gateway converts 403 responses to 404 before returning to client
 3. Workspaces are scoped to the authenticated user's tenant
 4. Business relations are validated against tenant context
+
+### Security Behavior
+
+```
+User in Tenant A tries to access resource in Tenant B:
+  ↓
+ca-service returns 403 Forbidden
+  ↓
+api-gateway intercepts and converts to 404 Not Found
+  ↓
+Client receives 404 (resource appears to not exist)
+```
+
+This design ensures:
+- No information leakage about other tenants' resources
+- Consistent error responses across all endpoints
+- Protection against enumeration attacks
 
 ---
 

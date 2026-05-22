@@ -11,12 +11,13 @@ export class AuditService {
     action: string;
     entityType: string;
     entityId?: string;
-    metadata?: Record<string, unknown>;
     ipAddress?: string;
     userAgent?: string;
     eventCategory?: string;
+    success?: boolean;
+    errorMessage?: string;
   }) {
-    const { tenantId, userId, action, entityType, entityId, metadata, ipAddress, userAgent, eventCategory } = params;
+    const { tenantId, userId, action, entityType, entityId, ipAddress, userAgent, eventCategory, success, errorMessage } = params;
     
     return this.prisma.auditLog.create({
       data: {
@@ -25,10 +26,11 @@ export class AuditService {
         action,
         entityType,
         entityId,
-        metadata: metadata || {},
         ipAddress,
         userAgent,
         eventCategory: eventCategory as any || 'DATA_MODIFICATION',
+        success: success !== undefined ? success : true,
+        errorMessage,
       },
     });
   }

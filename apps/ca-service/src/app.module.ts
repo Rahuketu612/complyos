@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PassportModule } from '@nestjs/passport';
 import { PrismaService } from './prisma/prisma.service';
 import { WorkspaceService } from './services/workspace.service';
 import { TaskService } from './services/task.service';
@@ -11,9 +13,14 @@ import { NotificationController } from './controllers/notification.controller';
 import { DashboardController } from './controllers/dashboard.controller';
 import { HealthController } from './controllers/health.controller';
 import { AuditService } from './services/audit.service';
+import { JwtStrategy } from './auth/strategies/jwt.strategy';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
-  imports: [],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+  ],
   controllers: [
     HealthController,
     WorkspaceController,
@@ -29,12 +36,15 @@ import { AuditService } from './services/audit.service';
     DocumentVaultService,
     NotificationService,
     AuditService,
+    JwtStrategy,
+    JwtAuthGuard,
   ],
   exports: [
     WorkspaceService,
     TaskService,
     DocumentVaultService,
     NotificationService,
+    JwtAuthGuard,
   ],
 })
 export class CaServiceModule {}
