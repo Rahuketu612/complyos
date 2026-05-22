@@ -93,7 +93,7 @@ export class GstService {
       formType: dto.formType,
       taxPeriod: dto.taxPeriod,
       status: dto.status,
-    });
+    }, 'GST_ACTION');
 
     return gstReturn;
   }
@@ -456,6 +456,8 @@ export class GstService {
     entityType: string,
     entityId: string,
     values: any,
+    eventCategory?: string,
+    correlationId?: string,
   ): Promise<void> {
     await this.prisma.auditLog.create({
       data: {
@@ -464,6 +466,8 @@ export class GstService {
         action,
         entityType,
         entityId,
+        eventCategory: eventCategory as any,
+        correlationId,
         newValues: values,
       },
     }).catch(() => {});
