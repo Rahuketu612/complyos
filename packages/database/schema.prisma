@@ -55,6 +55,11 @@ model Tenant {
   documents     Document[]
   notifications Notification[]
   conversations AiConversation[]
+  firms         Firm[]
+  workspaces    ClientWorkspace[]
+  documentsVault DocumentVault[]
+  complianceTasks ComplianceTask[]
+  userNotifications UserNotification[]
 
   @@map("tenants")
 }
@@ -120,6 +125,13 @@ model User {
   tenant    Tenant     @relation(fields: [tenantId], references: [id])
   sessions  Session[]
   auditLogs AuditLog[]
+  workspaceMemberships WorkspaceMember[]
+  assignedTasks ComplianceTask[] @relation("TaskAssignee")
+  createdTasks ComplianceTask[] @relation("TaskCreator")
+  notifications Notification[]
+  userNotifications UserNotification[]
+  uploadedDocuments DocumentVault[]
+  conversations AiConversation[]
 
   @@unique([tenantId, email])
   @@map("users")
@@ -274,6 +286,8 @@ model Business {
   tenant          Tenant           @relation(fields: [tenantId], references: [id])
   registrations   Registration[]
   returns         GstReturn[]
+  workspaces      ClientWorkspace[]
+  complianceTasks ComplianceTask[]
   notices         Notice[]
   vendors         Vendor[]
   reconciliations Reconciliation[]
@@ -918,6 +932,7 @@ model Notification {
   createdAt DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
 
   @@index([tenantId, status])
   @@map("notifications")
@@ -1086,6 +1101,7 @@ model AiConversation {
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
   @@map("ai_conversations")
 }
@@ -1160,4 +1176,296 @@ model ComplianceSchedule {
 
   @@unique([businessId, complianceRuleId, period])
   @@map("compliance_schedules")
+}
+
+// ============================================
+// CA FIRM & CLIENT WORKSPACE MANAGEMENT
+// ============================================
+
+model Firm {
+  id        String  @id @default(uuid())
+  tenantId  String
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  gstin     String? @unique
+  pan       String?
+
+  // Firm Type
+  firmType String? // sole_proprietorship, partnership, llp, company
+
+  // CA Association
+  caMemberId String? // Primary CA contact user ID
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  workspaces     ClientWorkspace[]
+  workspaceMembers WorkspaceMember[]
+
+  @@map("firms")
+}
+
+model ClientWorkspace {
+  id        String  @id @default(uuid())
+  firmId    String
+  businessId String? // Link to existing business if applicable
+  tenantId  String
+
+  name      String
+  description String?
+  logoUrl   String?
+
+  // Status
+  status String @default("active") // active, archived, suspended
+
+  // Settings
+  settings Json? // {features: [], integrations: {}}
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm       Firm             @relation(fields: [firmId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  business   Business?        @relation(fields: [businessId], references: [id])
+  members    WorkspaceMember[]
+  documents  DocumentVault[]
+  tasks      ComplianceTask[]
+  userNotifications UserNotification[]
+
+  @@unique([firmId, businessId])
+  @@map("client_workspaces")
+}
+
+enum WorkspaceRole {
+  ADMIN
+  CA
+  ACCOUNTANT
+  CLIENT
+  VIEWER
+}
+
+model WorkspaceMember {
+  id          String @id @default(uuid())
+  workspaceId String
+  userId      String
+  firmId      String
+
+  // Role in workspace
+  role WorkspaceRole @default(CLIENT)
+
+  // Status
+  status String @default("active") // active, inactive, pending
+
+  // Metadata
+  invitedBy String?
+  joinedAt   DateTime  @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  firm      Firm             @relation(fields: [firmId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+// ============================================
+// DOCUMENT VAULT
+// ============================================
+
+enum DocumentVaultCategory {
+  GST_NOTICE
+  INVOICE
+  CHALLAN
+  ROC_FILING
+  TAX_DOCUMENT
+  BANK_STATEMENT
+  ANNUAL_RETURN
+  PROFIT_LOSS
+  BALANCE_SHEET
+  OTHER
+}
+
+model DocumentVault {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+
+  // File Metadata (not actual file storage)
+  fileName     String
+  originalName String
+  fileType     String  // pdf, xlsx, docx, etc.
+  mimeType     String
+  size         Int     // bytes
+
+  // Category
+  category DocumentVaultCategory @default(OTHER)
+
+  // Storage (S3 key reference, not actual file)
+  storageKey String?
+
+  // Integrity
+  fileHash String? // SHA-256 hash
+
+  // Organization
+  businessId    String?
+  uploadedBy    String
+  retentionCategory RetentionCategory @default(GST_RECORDS)
+  retentionUntil DateTime?
+  tags     String[]
+  notes    String?
+
+  // Status
+  status String @default("active") // active, archived, deleted
+
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  // Relations
+  workspace ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  uploader User      @relation(fields: [uploadedBy], references: [id])
+
+  @@index([workspaceId, category])
+  @@index([workspaceId, uploadedBy])
+  @@map("document_vault")
+}
+
+// ============================================
+// COMPLIANCE TASK TRACKER
+// ============================================
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ComplianceType {
+  GST
+  TDS
+  INCOME_TAX
+  ROC
+  EPFO
+  ESIC
+  PROFESSIONAL_TAX
+  OTHER
+}
+
+model ComplianceTask {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+
+  // Task Details
+  title       String
+  description String?
+
+  // Status & Priority
+  status     TaskStatus   @default(PENDING)
+  priority   TaskPriority @default(MEDIUM)
+  completedAt DateTime?
+
+  // Compliance Context
+  complianceType ComplianceType @default(GST)
+
+  // Dates
+  dueDate DateTime?
+
+  // Assignment
+  assignedTo   String? // userId
+  createdBy    String
+
+  // Links
+  linkedBusinessId String?
+
+  // Notes
+  notes String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace   ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  assignee   User?            @relation("TaskAssignee", fields: [assignedTo], references: [id])
+  creator    User             @relation("TaskCreator", fields: [createdBy], references: [id])
+  business   Business?        @relation(fields: [linkedBusinessId], references: [id])
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, dueDate])
+  @@map("compliance_tasks")
+}
+
+// ============================================
+// NOTIFICATIONS (CA Practice)
+// ============================================
+
+enum NotificationType {
+  GST_NOTICE
+  RETURN_DUE
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  DOCUMENT_UPLOADED
+  SECURITY_ALERT
+  WORKSPACE_INVITE
+  SYSTEM
+}
+
+model UserNotification {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String?
+
+  // Type & Content
+  type    NotificationType
+  title   String
+  message String
+
+  // Data
+  data Json? // {taskId, documentId, workspaceId, etc.}
+
+  // Read Status
+  isRead  Boolean @default(false)
+  readAt  DateTime?
+
+  // Target
+  userId String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
+  workspace ClientWorkspace? @relation(fields: [workspaceId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([tenantId, createdAt])
+  @@map("user_notifications")
 }
