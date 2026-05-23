@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: complyos
+      POSTGRES_PASSWORD: complyos_dev_password
+      POSTGRES_DB: complyos
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U complyos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./apps/auth-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DATABASE_URL=postgresql://complyos:complyos_dev_password@postgres:5432/complyos
+      - JWT_SECRET=dev-jwt-secret-minimum-32-characters-long
+      - JWT_REFRESH_SECRET=dev-refresh-secret-minimum-32-chars
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+
+  # Business Service
+  business-service:
+    build:
+      context: ./apps/business-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - DATABASE_URL=postgresql://complyos:complyos_dev_password@postgres:5432/complyos
+      - JWT_SECRET=dev-jwt-secret-minimum-32-characters-long
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    ports:
+      - "3002:3002"
+
+  # GST Service
+  gst-service:
+    build:
+      context: ./apps/gst-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - DATABASE_URL=postgresql://complyos:complyos_dev_password@postgres:5432/complyos
+      - JWT_SECRET=dev-jwt-secret-minimum-32-characters-long
+      - BUSINESS_SERVICE_URL=http://business-service:3002
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      business-service:
+        condition: service_started
+    ports:
+      - "3003:3003"
+
+  # Vendor Service
+  vendor-service:
+    build:
+      context: ./apps/vendor-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - DATABASE_URL=postgresql://complyos:complyos_dev_password@postgres:5432/complyos
+      - JWT_SECRET=dev-jwt-secret-minimum-32-characters-long
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3004:3004"
+
+  # CA Service
+  ca-service:
+    build:
+      context: ./apps/ca-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3007
+      - DATABASE_URL=postgresql://complyos:complyos_dev_password@postgres:5432/complyos
+      - JWT_SECRET=dev-jwt-secret-minimum-32-characters-long
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3007:3007"
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./apps/api-gateway
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - BUSINESS_SERVICE_URL=http://business-service:3002
+      - GST_SERVICE_URL=http://gst-service:3003
+      - VENDOR_SERVICE_URL=http://vendor-service:3004
+      - CA_SERVICE_URL=http://ca-service:3007
+    depends_on:
+      - auth-service
+      - business-service
+      - gst-service
+      - vendor-service
+      - ca-service
+    ports:
+      - "3000:3000"
+
+  # Web Frontend
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    depends_on:
+      - api-gateway
+    ports:
+      - "3005:3000"
+
+volumes:
+  postgres_data:
+  redis_data:

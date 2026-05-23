@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateVendorDto, VendorFilterDto } from '../dto/create-vendor.dto';
+import { Prisma } from '@prisma/client';
+import { CreateVendorDto, UpdateVendorDto, VendorFilterDto } from '../dto/create-vendor.dto';
 import { calculateVendorRisk, calculateRiskLevel } from '../utils/risk-calculation';
+import { getMsmePaymentSummary } from '../msme/payment-aging';
 
 /**
  * Vendor Intelligence Service
@@ -21,7 +23,7 @@ export class VendorService {
   // VENDOR MANAGEMENT
   // ========================================
 
-  async createVendor(tenantId: string, businessId: string, dto: CreateVendorDto) {
+  async createVendor(tenantId: string, businessId: string, dto: CreateVendorDto, userId?: string) {
     // Check for existing vendor with same GSTIN
     const existing = await this.prisma.vendor.findFirst({
       where: {
@@ -47,10 +49,24 @@ export class VendorService {
         address: dto.address,
         state: dto.state,
         pincode: dto.pincode,
-        entityType: dto.entityType,
+        entityType: dto.entityType as Prisma.VendorCreateInput['entityType'],
+        // MSME fields
+        msmeRegistered: dto.msmeRegistered ?? false,
+        udyamNumber: dto.udyamNumber,
+        msmeType: dto.msmeType as any,
+        paymentDueDays: dto.paymentDueDays ?? 30,
         riskLevel: 'low_risk',
         complianceScore: 75, // Default score
       },
+    });
+
+    // Audit log for vendor creation with event category
+    await this.logAudit(tenantId, userId, 'vendor_created', 'Vendor', vendor.id, {
+      name: dto.name,
+      gstin: dto.gstin,
+      state: dto.state,
+      msmeRegistered: dto.msmeRegistered,
+      msmeType: dto.msmeType,
     });
 
     return vendor;
@@ -78,12 +94,48 @@ export class VendorService {
         orderBy: [{ complianceScore: 'asc' }],
         take: filter?.limit || 20,
         skip: filter?.page ? (filter.page - 1) * (filter.limit || 20) : 0,
+        include: {
+          _count: { select: { invoices: true } },
+        },
       }),
       this.prisma.vendor.count({ where }),
     ]);
 
+    // Add MSME payment summary to vendors with invoices
+    const vendorsWithAging = await Promise.all(
+      vendors.map(async (vendor) => {
+        const enriched = { ...vendor };
+        
+        // Get recent invoices for MSME aging calculation
+        if (vendor._count.invoices > 0 && vendor.msmeRegistered) {
+          const invoices = await this.prisma.gstr2bInvoice.findMany({
+            where: { vendorId: vendor.id },
+            orderBy: { invoiceDate: 'desc' },
+            take: 10,
+            select: {
+              invoiceDate: true,
+              invoiceValue: true,
+            },
+          });
+
+          // Mock due dates based on payment terms
+          const invoiceData = invoices.map((inv) => ({
+            invoiceDate: inv.invoiceDate,
+            dueDate: new Date(inv.invoiceDate.getTime() + (vendor.paymentDueDays || 30) * 24 * 60 * 60 * 1000),
+            amount: Number(inv.invoiceValue),
+            vendorMsmeType: vendor.msmeType as 'MICRO' | 'SMALL' | 'MEDIUM' | undefined,
+            paymentDueDays: vendor.paymentDueDays || 30,
+          }));
+
+          (enriched as any).msmePaymentSummary = getMsmePaymentSummary(invoiceData);
+        }
+        
+        return enriched;
+      })
+    );
+
     return {
-      data: vendors,
+      data: vendorsWithAging,
       pagination: {
         page: filter?.page || 1,
         limit: filter?.limit || 20,
@@ -105,17 +157,60 @@ export class VendorService {
       throw new NotFoundException('Vendor not found');
     }
 
-    return vendor;
+    // Add MSME payment aging if applicable
+    const enriched = { ...vendor };
+    
+    if (vendor.msmeRegistered && vendor._count.invoices > 0) {
+      const invoices = await this.prisma.gstr2bInvoice.findMany({
+        where: { vendorId: vendor.id },
+        orderBy: { invoiceDate: 'desc' },
+        take: 50,
+        select: {
+          invoiceDate: true,
+          invoiceValue: true,
+        },
+      });
+
+      const invoiceData = invoices.map((inv) => ({
+        invoiceDate: inv.invoiceDate,
+        dueDate: new Date(inv.invoiceDate.getTime() + (vendor.paymentDueDays || 30) * 24 * 60 * 60 * 1000),
+        amount: Number(inv.invoiceValue),
+        vendorMsmeType: vendor.msmeType as 'MICRO' | 'SMALL' | 'MEDIUM' | undefined,
+        paymentDueDays: vendor.paymentDueDays || 30,
+      }));
+
+      (enriched as any).msmePaymentSummary = getMsmePaymentSummary(invoiceData);
+    }
+
+    return enriched;
   }
 
-  async updateVendor(id: string, businessId: string, dto: Partial<CreateVendorDto>) {
+  async updateVendor(id: string, businessId: string, dto: UpdateVendorDto) {
     const vendor = await this.getVendor(id, businessId);
     // Note: GSTIN changes would require re-verification in production
 
-    return this.prisma.vendor.update({
+    const updated = await this.prisma.vendor.update({
       where: { id },
-      data: dto,
+      data: {
+        name: dto.name,
+        tradeName: dto.tradeName,
+        address: dto.address,
+        state: dto.state,
+        pincode: dto.pincode,
+        // MSME fields
+        msmeRegistered: dto.msmeRegistered,
+        udyamNumber: dto.udyamNumber,
+        msmeType: dto.msmeType as any,
+        paymentDueDays: dto.paymentDueDays,
+      },
     });
+
+    // Audit log
+    await this.logAudit(vendor.tenantId, undefined, 'vendor_updated', 'Vendor', vendor.id, {
+      updatedFields: Object.keys(dto),
+    });
+
+    return updated;
   }
 
   async deleteVendor(id: string, businessId: string) {
@@ -211,6 +306,12 @@ export class VendorService {
 
     // Update vendor statistics
     await this.updateVendorStats(vendorId);
+
+    // Audit log for invoice import
+    await this.logAudit(vendor.tenantId, undefined, 'invoices_imported', 'Gstr2bInvoice', vendorId, {
+      period,
+      count: imported.length,
+    });
 
     return {
       imported: imported.length,
@@ -356,13 +457,23 @@ export class VendorService {
   // ========================================
 
   async getDashboard(tenantId: string, businessId: string) {
-    const [vendors, recentReconciliation, itcExposure] = await Promise.all([
+    const [
+      vendors,
+      recentReconciliation,
+      itcExposure,
+      openNotices,
+      upcomingReturns,
+      vendorsWithoutGstin,
+    ] = await Promise.all([
       this.prisma.vendor.findMany({
         where: { tenantId, businessId },
         select: {
           riskLevel: true,
           complianceScore: true,
           itcAtRisk: true,
+          gstin: true,
+          msmeRegistered: true,
+          msmeType: true,
         },
       }),
       this.prisma.reconciliation.findFirst({
@@ -374,7 +485,31 @@ export class VendorService {
         _sum: { itcAtRisk: true, itcClaimed: true, itcBlocked: true },
         _count: true,
       }),
+      this.prisma.notice.count({
+        where: { businessId, status: 'RECEIVED' },
+      }),
+      // Get upcoming GSTR-1/3B due within 7 days
+      this.prisma.gstReturn.findMany({
+        where: {
+          businessId,
+          status: 'not_filed',
+          dueDate: {
+            gte: new Date(),
+            lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        },
+        take: 5,
+      }),
+      this.prisma.vendor.count({
+        where: { tenantId, businessId, gstin: null },
+      }),
     ]);
+
+    // Count overdue MSME invoices (simplified - in production would be more detailed)
+    const overdueMsmeCount = vendors.filter(v => 
+      v.msmeRegistered && 
+      (v.riskLevel === 'critical' || v.riskLevel === 'high_risk')
+    ).length;
 
     // Risk distribution
     const byRisk = {
@@ -400,6 +535,17 @@ export class VendorService {
         blocked: itcExposure._sum.itcBlocked || 0,
       },
       lastReconciliation: recentReconciliation,
+      complianceRisks: {
+        overdueMsmeInvoices: overdueMsmeCount,
+        vendorsMissingGstin: vendorsWithoutGstin,
+        openGstNotices: openNotices,
+        upcomingGstReturns: upcomingReturns.length,
+        upcomingReturnsList: upcomingReturns.map(r => ({
+          formType: r.formType,
+          dueDate: r.dueDate,
+          taxPeriod: r.taxPeriod,
+        })),
+      },
     };
   }
 
@@ -414,7 +560,7 @@ export class VendorService {
 
     const totalInvoices = invoices.length;
     const matched = invoices.filter(i => i.matchStatus === 'matched').length;
-    const missing = invoices.filter(i => i.matchStatus === 'missing').length;
+    const missingCount = invoices.filter(i => i.matchStatus === 'missing').length;
     const unmatched = invoices.filter(i => i.matchStatus === 'mismatch').length;
 
     const itcClaimed = invoices.reduce(
@@ -426,15 +572,15 @@ export class VendorService {
     const riskScore = calculateVendorRisk({
       totalInvoices,
       matched,
-      missing,
+      missing: missingCount,
       lastGstr1Filed: undefined, // Would come from vendor sync
     });
 
     // Calculate risk level
-    const riskLevel = calculateRiskLevel(itcClaimed, missing, riskScore);
+    const riskLevel = calculateRiskLevel(itcClaimed, missingCount, riskScore);
 
     // Calculate ITC at risk
-    const itcAtRisk = missing.reduce(
+    const itcAtRisk = invoices.filter(i => i.matchStatus === 'missing').reduce(
       (sum, i) => sum + Number(i.taxableValue || 0) * 0.18, // Assumed 18% average
       0
     );
@@ -444,7 +590,7 @@ export class VendorService {
       data: {
         totalInvoices,
         matchedInvoices: matched,
-        missingInvoices: missing,
+        missingInvoices: missingCount,
         itcClaimed,
         itcAtRisk,
         complianceScore: riskScore,
@@ -452,5 +598,27 @@ export class VendorService {
         lastSeenAt: new Date(),
       },
     });
+  }
+
+  private async logAudit(
+    tenantId: string,
+    userId: string | undefined,
+    action: string,
+    entityType: string,
+    entityId: string,
+    values: any,
+    
+  ): Promise<void> {
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        action,
+        entityType,
+        entityId,
+        
+        newValues: values,
+      },
+    }).catch(() => {});
   }
 }

@@ -1,0 +1,40 @@
+{
+  "name": "@complyos/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "schema.prisma",
+  "scripts": {
+    "generate": "prisma generate --schema schema.prisma",
+    "seed": "ts-node --transpile-only -r tsconfig-paths/register seed.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only -r tsconfig-paths/register seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.19.41",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testMatch": [
+      "**/tests/**/*.test.ts"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/node_modules/"
+    ],
+    "testEnvironment": "node"
+  }
+}

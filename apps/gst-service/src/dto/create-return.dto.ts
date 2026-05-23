@@ -1,16 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, IsNumber, IsEnum, IsDateString } from 'class-validator';
-
-enum GstrFormType {
-  GSTR_1 = 'GSTR_1',
-  GSTR_3B = 'GSTR_3B',
-  GSTR_4 = 'GSTR_4',
-  GSTR_5 = 'GSTR_5',
-  GSTR_6 = 'GSTR_6',
-  GSTR_7 = 'GSTR_7',
-  GSTR_9 = 'GSTR_9',
-  GSTR_9C = 'GSTR_9C',
-}
+import { GstrFormType } from '@prisma/client';
 
 enum FilingStatus {
   filed = 'filed',
@@ -32,7 +22,7 @@ export class CreateReturnDto {
   @ApiPropertyOptional({ enum: GstrFormType })
   @IsOptional()
   @IsEnum(GstrFormType)
-  formType?: string;
+  formType?: GstrFormType;
 
   @ApiPropertyOptional({ enum: FilingStatus })
   @IsOptional()

@@ -55,6 +55,17 @@ model Tenant {
   documents     Document[]
   notifications Notification[]
   conversations AiConversation[]
+  firms         Firm[]
+  workspaces    ClientWorkspace[]
+  documentsVault DocumentVault[]
+  complianceTasks ComplianceTask[]
+  userNotifications UserNotification[]
+  notices       Notice[]
+  noticeActivities NoticeActivity[]
+  aiActionLogs  AIActionLog[]
+  communicationThreads CommunicationThread[]
+  communicationMessages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
 
   @@map("tenants")
 }
@@ -120,6 +131,22 @@ model User {
   tenant    Tenant     @relation(fields: [tenantId], references: [id])
   sessions  Session[]
   auditLogs AuditLog[]
+  workspaceMemberships WorkspaceMember[]
+  assignedTasks ComplianceTask[] @relation("TaskAssignee")
+  createdTasks ComplianceTask[] @relation("TaskCreator")
+  notifications Notification[]
+  userNotifications UserNotification[]
+  uploadedDocuments DocumentVault[]
+  conversations AiConversation[]
+  assignedNotices Notice[] @relation("NoticeAssignee")
+  noticeActivities NoticeActivity[]
+  linkedDocuments NoticeDocument[] @relation("DocLinker")
+  linkedTasks NoticeTask[] @relation("TaskLinker")
+  aiActionLogs AIActionLog[]
+  createdThreads CommunicationThread[] @relation("ThreadCreator")
+  assignedThreads CommunicationThread[] @relation("ThreadAssignee")
+  messages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
 
   @@unique([tenantId, email])
   @@map("users")
@@ -136,6 +163,10 @@ model Session {
   tokenExpiry        DateTime
   refreshTokenExpiry DateTime?
 
+  // Token Family (for rotation tracking)
+  tokenFamily String? // Groups rotated tokens together
+  rotationCount Int    @default(0)
+
   // Device Info
   deviceId   String?
   deviceName String?
@@ -150,6 +181,8 @@ model Session {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId, isRevoked])
+  @@index([tokenFamily, isRevoked])
   @@map("sessions")
 }
 
@@ -268,11 +301,14 @@ model Business {
   tenant          Tenant           @relation(fields: [tenantId], references: [id])
   registrations   Registration[]
   returns         GstReturn[]
+  workspaces      ClientWorkspace[]
+  complianceTasks ComplianceTask[]
   notices         Notice[]
   vendors         Vendor[]
   reconciliations Reconciliation[]
   documents       Document[]
   invoices        Gstr2bInvoice[]
+  communicationThreads CommunicationThread[]
 
   @@map("businesses")
 }
@@ -378,104 +414,6 @@ model GstReturn {
 }
 
 // ============================================
-// GST NOTICES & COMMUNICATIONS
-// ============================================
-
-enum NoticeType {
-  gstr1_not_filed
-  gstr3b_not_filed
-  tax_demand
-  refund_rejection
-  ITC_mismatch
-  scrutiny
-  audit
-  inspection
-  summons
-  penalty
-  compoundable_offense
-  cancellation
-  provisional_attachment
-  OTHER
-}
-
-enum NoticeSeverity {
-  info
-  low
-  medium
-  high
-  critical
-}
-
-enum NoticeStatus {
-  received
-  viewed
-  under_review
-  response_drafting
-  response_submitted
-  hearing_scheduled
-  resolved
-  appeal_filed
-  pending_payment
-  disputed
-}
-
-model Notice {
-  id         String @id @default(uuid())
-  businessId String
-
-  // Notice Identification
-  noticeNumber    String?
-  referenceNumber String?
-  noticeDate      DateTime?
-  noticeType      NoticeType
-  noticeCategory  String?
-
-  // Severity & Status
-  severity NoticeSeverity @default(medium)
-  status   NoticeStatus   @default(received)
-
-  // Amount
-  demandedAmount Decimal @default(0)
-  penaltyAmount  Decimal @default(0)
-  totalAmount    Decimal @default(0)
-  paidAmount     Decimal @default(0)
-
-  // Key Dates
-  dueDate         DateTime?
-  responseDueDate DateTime?
-  hearingDate     DateTime?
-  resolvedDate    DateTime?
-
-  // Source
-  source          String  @default("portal") // portal, email, manual
-  sourceReference String?
-
-  // Description
-  title       String?
-  description String?
-
-  // AI Analysis
-  aiSummary     String?
-  aiRiskLevel   String?
-  aiActionItems Json? // []
-  aiConfidence  Float?
-
-  // Response
-  responseDate   DateTime?
-  responseDocUrl String?
-
-  // Timeline Events
-  events Json? // [{date, action, by}]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  business Business @relation(fields: [businessId], references: [id])
-
-  @@map("notices")
-}
-
-// ============================================
 // GST LEDGER
 // ============================================
 
@@ -530,6 +468,13 @@ enum VendorRiskLevel {
   critical
 }
 
+// MSME Classification
+enum MsmeType {
+  MICRO
+  SMALL
+  MEDIUM
+}
+
 model Vendor {
   id         String @id @default(uuid())
   tenantId   String
@@ -551,6 +496,12 @@ model Vendor {
 
   // Business Type
   entityType EntityType?
+
+  // MSME Compliance (Delayed Payment Act)
+  msmeRegistered Boolean  @default(false)
+  udyamNumber    String?
+  msmeType       MsmeType?
+  paymentDueDays Int      @default(30) // Standard payment terms
 
   // Compliance Score
   complianceScore Int             @default(70)
@@ -782,6 +733,26 @@ enum DocumentStatus {
   archived
 }
 
+// Retention policy constants (in years)
+// GST_RECORDS: 6 years per GST Act
+// INCOME_TAX: 8 years per Income Tax Act
+// TDS_RECORDS: 7 years
+// COMPANY_RECORDS: 8 years
+// AUDIT_WORKPAPERS: 8 years
+// CONTRACTS: 8 years from expiry
+// PERSONAL_DATA: DPDP Act - as long as purpose exists
+// DEFAULT: 7 years standard
+enum RetentionCategory {
+  GST_RECORDS
+  INCOME_TAX
+  TDS_RECORDS
+  COMPANY_RECORDS
+  AUDIT_WORKPAPERS
+  CONTRACTS
+  PERSONAL_DATA
+  DEFAULT
+}
+
 model Document {
   id         String  @id @default(uuid())
   tenantId   String
@@ -813,6 +784,11 @@ model Document {
 
   // Hash for integrity
   checksum String?
+
+  // CERT-In / Compliance: Document retention
+  retentionCategory  RetentionCategory @default(GST_RECORDS)
+  retentionUntil     DateTime?        // Auto-computed based on category
+  destroyAfterRetain Boolean          @default(false) // Flag for scheduled destruction
 
   // Timestamps
   uploadedAt  DateTime  @default(now())
@@ -874,6 +850,7 @@ model Notification {
   createdAt DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
 
   @@index([tenantId, status])
   @@map("notifications")
@@ -882,6 +859,22 @@ model Notification {
 // ============================================
 // AUDIT & LOGGING
 // ============================================
+
+// CERT-In compliant event categories
+enum AuditEventCategory {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  TOKEN_REFRESH
+  GST_ACTION
+  VENDOR_ACTION
+  DATA_EXPORT
+  ADMIN_ACTION
+  SECURITY_INCIDENT
+  DATA_ACCESS
+  DATA_MODIFICATION
+  SYSTEM_CONFIG
+}
 
 model AuditLog {
   id       String  @id @default(uuid())
@@ -893,9 +886,15 @@ model AuditLog {
   entityType String // User, Business, Notice, etc.
   entityId   String?
 
+  // CERT-In: Event category for security classification
+  eventCategory AuditEventCategory?
+
   // Changes
   oldValues Json?
   newValues Json?
+
+  // CERT-In: Correlation ID for request tracing
+  correlationId String?
 
   // Request Info
   ipAddress     String?
@@ -907,6 +906,10 @@ model AuditLog {
   success      Boolean @default(true)
   errorMessage String?
 
+  // CERT-In: Immutable hash chain for tamper detection
+  previousHash String? // Hash of previous audit log entry
+  checksum     String?  // SHA-256 of (timestamp + action + entityType + entityId + userId + correlationId + success)
+
   timestamp DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
@@ -914,6 +917,7 @@ model AuditLog {
 
   @@index([tenantId, timestamp])
   @@index([userId, timestamp])
+  @@index([eventCategory, timestamp])
   @@map("audit_logs")
 }
 
@@ -1015,6 +1019,7 @@ model AiConversation {
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
   @@map("ai_conversations")
 }
@@ -1089,4 +1094,856 @@ model ComplianceSchedule {
 
   @@unique([businessId, complianceRuleId, period])
   @@map("compliance_schedules")
+}
+
+// ============================================
+// CA FIRM & CLIENT WORKSPACE MANAGEMENT
+// ============================================
+
+model Firm {
+  id        String  @id @default(uuid())
+  tenantId  String
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  gstin     String? @unique
+  pan       String?
+
+  // Firm Type
+  firmType String? // sole_proprietorship, partnership, llp, company
+
+  // CA Association
+  caMemberId String? // Primary CA contact user ID
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  workspaces     ClientWorkspace[]
+  workspaceMembers WorkspaceMember[]
+
+  @@map("firms")
+}
+
+model ClientWorkspace {
+  id        String  @id @default(uuid())
+  firmId    String
+  businessId String? // Link to existing business if applicable
+  tenantId  String
+
+  name      String
+  description String?
+  logoUrl   String?
+
+  // Status
+  status String @default("active") // active, archived, suspended
+
+  // Settings
+  settings Json? // {features: [], integrations: {}}
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm       Firm             @relation(fields: [firmId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  business   Business?        @relation(fields: [businessId], references: [id])
+  members    WorkspaceMember[]
+  documents  DocumentVault[]
+  tasks      ComplianceTask[]
+  userNotifications UserNotification[]
+  notices     Notice[]
+  aiActionLogs AIActionLog[]
+  communicationThreads CommunicationThread[]
+  evidenceRequests EvidenceRequest[]
+
+  @@unique([firmId, businessId])
+  @@map("client_workspaces")
+}
+
+enum WorkspaceRole {
+  ADMIN
+  CA
+  ACCOUNTANT
+  CLIENT
+  VIEWER
+}
+
+model WorkspaceMember {
+  id          String @id @default(uuid())
+  workspaceId String
+  userId      String
+  firmId      String
+
+  // Role in workspace
+  role WorkspaceRole @default(CLIENT)
+
+  // Status
+  status String @default("active") // active, inactive, pending
+
+  // Metadata
+  invitedBy String?
+  joinedAt   DateTime  @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  firm      Firm             @relation(fields: [firmId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+// ============================================
+// DOCUMENT VAULT
+// ============================================
+
+enum DocumentVaultCategory {
+  GST_NOTICE
+  INVOICE
+  CHALLAN
+  ROC_FILING
+  TAX_DOCUMENT
+  BANK_STATEMENT
+  ANNUAL_RETURN
+  PROFIT_LOSS
+  BALANCE_SHEET
+  OTHER
+}
+
+model DocumentVault {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+
+  // File Metadata (not actual file storage)
+  fileName     String
+  originalName String
+  fileType     String  // pdf, xlsx, docx, etc.
+  mimeType     String
+  size         Int     // bytes
+
+  // Category
+  category DocumentVaultCategory @default(OTHER)
+
+  // Storage (S3 key reference, not actual file)
+  storageKey String?
+
+  // Integrity
+  fileHash String? // SHA-256 hash
+
+  // Organization
+  businessId    String?
+  uploadedBy    String
+  retentionCategory RetentionCategory @default(GST_RECORDS)
+  retentionUntil DateTime?
+  tags     String[]
+  notes    String?
+
+  // Status
+  status String @default("active") // active, archived, deleted
+
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  // Relations
+  workspace ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  uploader User      @relation(fields: [uploadedBy], references: [id])
+  noticeLinks NoticeDocument[]
+  communicationMessages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
+
+  @@index([workspaceId, category])
+  @@index([workspaceId, uploadedBy])
+  @@map("document_vault")
+}
+
+// ============================================
+// COMPLIANCE TASK TRACKER
+// ============================================
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ComplianceType {
+  GST
+  TDS
+  INCOME_TAX
+  ROC
+  EPFO
+  ESIC
+  PROFESSIONAL_TAX
+  OTHER
+}
+
+model ComplianceTask {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+
+  // Task Details
+  title       String
+  description String?
+
+  // Status & Priority
+  status     TaskStatus   @default(PENDING)
+  priority   TaskPriority @default(MEDIUM)
+  completedAt DateTime?
+
+  // Compliance Context
+  complianceType ComplianceType @default(GST)
+
+  // Dates
+  dueDate DateTime?
+
+  // Assignment
+  assignedTo   String? // userId
+  createdBy    String
+
+  // Links
+  linkedBusinessId String?
+
+  // Notes
+  notes String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace   ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  assignee   User?            @relation("TaskAssignee", fields: [assignedTo], references: [id])
+  creator    User             @relation("TaskCreator", fields: [createdBy], references: [id])
+  business   Business?        @relation(fields: [linkedBusinessId], references: [id])
+  noticeLinks NoticeTask[]
+  communicationThreads CommunicationThread[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, dueDate])
+  @@map("compliance_tasks")
+}
+
+// ============================================
+// NOTIFICATIONS (CA Practice)
+// ============================================
+
+enum NotificationType {
+  GST_NOTICE
+  RETURN_DUE
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  DOCUMENT_UPLOADED
+  SECURITY_ALERT
+  WORKSPACE_INVITE
+  SYSTEM
+}
+
+model UserNotification {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String?
+
+  // Type & Content
+  type    NotificationType
+  title   String
+  message String
+
+  // Data
+  data Json? // {taskId, documentId, workspaceId, etc.}
+
+  // Read Status
+  isRead  Boolean @default(false)
+  readAt  DateTime?
+
+  // Target
+  userId String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
+  workspace ClientWorkspace? @relation(fields: [workspaceId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([tenantId, createdAt])
+  @@map("user_notifications")
+}
+
+// ============================================
+// NOTICE MANAGEMENT (CA Practice)
+// ============================================
+
+enum NoticeStatus {
+  RECEIVED
+  UNDER_REVIEW
+  CLIENT_PENDING
+  DRAFT_PREPARED
+  RESPONSE_FILED
+  CLOSED
+}
+
+enum NoticeSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum NoticeType {
+  GST_SCRUTINY
+  GST_DEMAND
+  GST_ASSESSMENT
+  GST_PENALTY
+  GST_REFUND
+  GST_ARC
+  INCOME_TAX_SCRUTINY
+  INCOME_TAX_ASSESSMENT
+  INCOME_TAX_DEMAND
+  INCOME_TAX_PENALTY
+  TDS_DEFAULT
+  ROC_NON_COMPLIANCE
+  EPFO_DEMAND
+  ESIC_DEMAND
+  OTHER
+}
+
+model Notice {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+  businessId  String?
+
+  // Notice Identity
+  noticeNumber String? // Official notice number (e.g., "C.no.Ahd-EX-006/2024-25/1234")
+  noticeType   NoticeType @default(GST_SCRUTINY)
+
+  // Issuing Authority
+  issuingAuthority String? // e.g., "Superintendent, Ward 6, Ahmedabad"
+  assessmentYear  String? // e.g., "2022-23"
+
+  // Severity & Status
+  severity       NoticeSeverity @default(MEDIUM)
+  status         NoticeStatus   @default(RECEIVED)
+
+  // Dates
+  receivedDate     DateTime @default(now())
+  responseDueDate  DateTime?
+  closureDate      DateTime?
+
+  // Financial Impact
+  demandAmount  Decimal?  @db.Decimal(15, 2)
+  penaltyAmount Decimal?  @db.Decimal(15, 2)
+  interestAmount Decimal? @db.Decimal(15, 2)
+  totalLiability  Decimal? @db.Decimal(15, 2)
+
+  // Description
+  subject        String?
+  summary        String?
+  groundsOfNotice String? // Text content of notice
+
+  // Assignment
+  assignedTo String? // userId
+  assignedAt DateTime?
+
+  // Resolution
+  resolutionNotes String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace     ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  business      Business?        @relation(fields: [businessId], references: [id])
+  assignee      User?            @relation("NoticeAssignee", fields: [assignedTo], references: [id])
+  activities    NoticeActivity[]
+  linkedDocuments NoticeDocument[]
+  linkedTasks    NoticeTask[]
+  communicationThreads CommunicationThread[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, severity])
+  @@index([responseDueDate])
+  @@index([assignedTo])
+  @@map("notices")
+}
+
+enum NoticeActivityAction {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  UNASSIGNED
+  COMMENT
+  DOCUMENT_LINKED
+  DOCUMENT_UNLINKED
+  TASK_CREATED
+  RESPONSE_FILED
+  CLOSED
+  REOPENED
+  UPDATED
+}
+
+model NoticeActivity {
+  id          String @id @default(uuid())
+  noticeId    String
+  tenantId    String
+
+  // Activity Details
+  action      NoticeActivityAction
+  comment     String?
+  previousValue String? // For status changes, etc.
+  newValue    String?
+
+  // Correlation for tracking related activities
+  correlationId String?
+
+  // Metadata
+  metadata Json? // Additional structured data
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  notice   Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  user     User   @relation(fields: [createdBy], references: [id])
+  createdBy String
+
+  @@index([noticeId, createdAt])
+  @@map("notice_activities")
+}
+
+// ============================================
+// AI COMPLIANCE ASSISTANT
+// ============================================
+
+enum AIPromptType {
+  NOTICE_SUMMARIZE
+  NOTICE_SUGGEST_TASKS
+  DASHBOARD_INSIGHTS
+  DOCUMENT_TAG
+  COMPLIANCE_ADVICE
+  CHAT
+}
+
+enum AIEntityType {
+  NOTICE
+  TASK
+  BUSINESS
+  DOCUMENT
+  WORKSPACE
+  VENDOR
+  RETURN
+}
+
+enum AIFeatureFlag {
+  ALL
+  INSIGHTS_ONLY
+  SUMMARIZE_ONLY
+  DISABLED
+}
+
+model AIActionLog {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String?
+  userId      String
+
+  // Action Details
+  promptType  AIPromptType
+  entityType  AIEntityType?
+  entityId    String?
+
+  // Model & Provider
+  provider    String? // openai, anthropic, local, mock
+  modelUsed   String?
+
+  // Token Usage
+  promptTokens    Int?
+  completionTokens Int?
+  totalTokens     Int?
+
+  // Performance
+  executionTimeMs Int?
+
+  // Request/Response
+  prompt       String?
+  response     String?
+  errorMessage String?
+
+  // Result
+  success      Boolean @default(true)
+
+  // Correlation
+  correlationId String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  user      User   @relation(fields: [userId], references: [id])
+  workspace ClientWorkspace? @relation(fields: [workspaceId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([userId, promptType])
+  @@index([entityType, entityId])
+  @@index([correlationId])
+  @@map("ai_action_logs")
+}
+
+// ============================================
+// CLIENT COMMUNICATION WORKFLOW
+// ============================================
+
+enum CommunicationType {
+  NOTICE
+  TASK
+  DOCUMENT_REQUEST
+  GENERAL
+  APPROVAL
+}
+
+enum ThreadStatus {
+  OPEN
+  WAITING_CLIENT
+  WAITING_INTERNAL
+  RESOLVED
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+  DOCUMENT
+  AI_SUMMARY
+}
+
+model CommunicationThread {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String
+  businessId  String?
+
+  // Thread Details
+  subject      String
+  type         CommunicationType
+  status       ThreadStatus @default(OPEN)
+  priority     TaskPriority @default(MEDIUM)
+
+  // Assignment
+  createdBy    String
+  assignedTo   String?
+
+  // Context (optional links to other entities)
+  noticeId     String?
+  taskId       String?
+  documentId   String?
+
+  // Summary
+  aiSummary    String? // AI-generated summary
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  resolvedAt   DateTime?
+
+  // Relations
+  tenant       Tenant @relation(fields: [tenantId], references: [id])
+  workspace    ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  business     Business? @relation(fields: [businessId], references: [id])
+  creator      User @relation("ThreadCreator", fields: [createdBy], references: [id])
+  assignee     User? @relation("ThreadAssignee", fields: [assignedTo], references: [id])
+  notice       Notice? @relation(fields: [noticeId], references: [id])
+  task         ComplianceTask? @relation(fields: [taskId], references: [id])
+  messages     CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
+
+  @@index([tenantId, workspaceId])
+  @@index([tenantId, status])
+  @@index([businessId])
+  @@index([noticeId])
+  @@index([assignedTo])
+  @@map("communication_threads")
+}
+
+model CommunicationMessage {
+  id          String @id @default(uuid())
+  tenantId    String
+  threadId    String
+
+  // Sender
+  senderId    String
+  senderRole  String // "ca", "client", "system", "ai"
+  senderName  String // Cached name for display
+
+  // Content
+  message     String
+  messageType MessageType @default(TEXT)
+
+  // Visibility
+  isInternalNote Boolean @default(false) // Only visible to CA/internal
+
+  // Document reference (if message references a document)
+  documentId  String?
+  document    DocumentVault? @relation(fields: [documentId], references: [id])
+
+  // AI
+  correlationId String? // Link to AIActionLog
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+
+  // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  thread      CommunicationThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      User @relation(fields: [senderId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([tenantId])
+  @@map("communication_messages")
+}
+
+// Evidence Request - Track document requests from clients
+enum EvidenceStatus {
+  REQUESTED
+  UPLOADED
+  VERIFIED
+  REJECTED
+}
+
+model EvidenceRequest {
+  id          String @id @default(uuid())
+  tenantId    String
+  threadId    String?
+
+  // Request details
+  title       String
+  description String?
+  dueDate     DateTime?
+
+  // Status tracking
+  status      EvidenceStatus @default(REQUESTED)
+
+  // Evidence (linked document)
+  documentId  String?
+  uploadedAt  DateTime?
+  verifiedAt  DateTime?
+  verifiedBy  String?
+  rejectReason String?
+
+  // Context
+  requesterId String
+  workspaceId String
+  noticeId    String?
+  taskId      String?
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  thread      CommunicationThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  document    DocumentVault? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  requester   User @relation(fields: [requesterId], references: [id])
+  workspace   ClientWorkspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([tenantId, workspaceId])
+  @@index([threadId])
+  @@index([status])
+  @@map("evidence_requests")
+}
+
+// ============================================
+// NOTICE-DOCUMENT LINKING (already defined above)
+// ============================================
+
+model NoticeDocument {
+  id          String   @id @default(uuid())
+  noticeId    String
+  documentId  String
+  linkedBy    String
+  linkedAt    DateTime @default(now())
+  notes       String?
+
+  notice   Notice      @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  document DocumentVault @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  linker   User         @relation("DocLinker", fields: [linkedBy], references: [id])
+
+  @@unique([noticeId, documentId])
+  @@map("notice_documents")
+}
+
+// ============================================
+// NOTICE-TASK LINKING
+// ============================================
+
+model NoticeTask {
+  id        String   @id @default(uuid())
+  noticeId  String
+  taskId    String
+  linkedBy  String
+  linkedAt  DateTime @default(now())
+
+  notice Notice         @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  task   ComplianceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  linker User            @relation("TaskLinker", fields: [linkedBy], references: [id])
+
+  @@unique([noticeId, taskId])
+  @@map("notice_tasks")
+}
+
+// ============================================
+// PRODUCT ANALYTICS MODELS
+// ============================================
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  workspaceId String?
+  
+  // Event details
+  eventType  String   // login, notice_created, dashboard_view, etc.
+  eventCategory String // navigation, action, conversion, error
+  severity   String?  // info, warning, error for error events
+  
+  // Context
+  page       String?  // current page/route
+  action     String?  // button clicked, form submitted, etc.
+  target     String?  // entity type affected
+  
+  // Metadata (flexible JSON for different event types)
+  metadata   Json?    // {entityId, entityType, duration, count, etc.}
+  
+  // Device/Location info (privacy-safe)
+  userAgent  String?
+  ipAddress  String?  // hashed or truncated for privacy
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  
+  @@index([tenantId, eventType])
+  @@index([tenantId, createdAt])
+  @@index([userId])
+}
+
+// ============================================
+// FEEDBACK SYSTEM MODELS
+// ============================================
+
+model Feedback {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  
+  // Feedback details
+  type       FeedbackType // issue, feature_request, general, praise
+  category   String?  // ui, performance, workflow, compliance, etc.
+  priority   FeedbackPriority @default(MEDIUM)
+  
+  // Content
+  subject    String
+  description String @db.Text
+  screenshots Json?   // array of screenshot URLs or base64 (small ones)
+  
+  // Status
+  status     FeedbackStatus @default(OPEN)
+  assignedTo String?  // userId of admin handling it
+  resolution String?  @db.Text
+  
+  // Metadata
+  pageOrigin String?  // which page the feedback came from
+  userAgent  String?
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  resolvedAt DateTime?
+  
+  @@index([tenantId, status])
+  @@index([tenantId, type])
+}
+
+// ============================================
+// ONBOARDING PROGRESS MODEL
+// ============================================
+
+model OnboardingProgress {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String   // primary user tracking progress
+  
+  // Checklist items (all false by default)
+  workspaceCreated Boolean @default(false)
+  firstClientAdded  Boolean @default(false)
+  firstDocumentUploaded Boolean @default(false)
+  firstTaskCreated  Boolean @default(false)
+  firstNoticeResolved Boolean @default(false)
+  
+  // Completion
+  completedAt DateTime?
+  completionPercentage Int @default(0) // 0, 20, 40, 60, 80, 100
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([tenantId, userId])
+}
+
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum FeedbackType {
+  issue          // Bug or problem
+  feature_request // Suggestion for new feature
+  general        // General feedback
+  praise         // Positive feedback
+}
+
+enum FeedbackPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum FeedbackStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
 }

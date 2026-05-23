@@ -6,6 +6,7 @@ interface User {
   email: string
   firstName: string
   lastName?: string
+  role?: string
 }
 
 interface AuthState {
@@ -19,12 +20,19 @@ interface AuthState {
   selectedBusinessId: string | null
   selectedBusinessName: string | null
   
+  // Workspace context (CA)
+  selectedWorkspaceId: string | null
+  selectedWorkspaceName: string | null
+  
   // Actions
   login: (tokens: { accessToken: string; refreshToken?: string }, user: User) => void
   logout: () => void
   
   setSelectedBusiness: (id: string, name: string) => void
   clearSelectedBusiness: () => void
+  
+  setSelectedWorkspace: (id: string, name: string) => void
+  clearSelectedWorkspace: () => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -39,23 +47,44 @@ export const useAuthStore = create<AuthState>()(
       selectedBusinessId: null,
       selectedBusinessName: null,
       
+      selectedWorkspaceId: null,
+      selectedWorkspaceName: null,
+      
       // Login action
-      login: (tokens, user) => set({
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken || null,
-        user,
-        isAuthenticated: true,
-      }),
+      login: (tokens, user) => {
+        // Sync session cookie for middleware
+        if (typeof window !== 'undefined') {
+          fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessToken: tokens.accessToken, isAuthenticated: true }),
+          }).catch(console.error);
+        }
+        set({
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken || null,
+          user,
+          isAuthenticated: true,
+        })
+      },
       
       // Logout action
-      logout: () => set({
-        accessToken: null,
-        refreshToken: null,
-        user: null,
-        isAuthenticated: false,
-        selectedBusinessId: null,
-        selectedBusinessName: null,
-      }),
+      logout: () => {
+        // Clear session cookie for middleware
+        if (typeof window !== 'undefined') {
+          fetch('/api/auth/session', { method: 'DELETE' }).catch(console.error);
+        }
+        set({
+          accessToken: null,
+          refreshToken: null,
+          user: null,
+          isAuthenticated: false,
+          selectedBusinessId: null,
+          selectedBusinessName: null,
+          selectedWorkspaceId: null,
+          selectedWorkspaceName: null,
+        })
+      },
       
       // Business selection
       setSelectedBusiness: (id, name) => set({
@@ -67,6 +96,17 @@ export const useAuthStore = create<AuthState>()(
         selectedBusinessId: null,
         selectedBusinessName: null,
       }),
+      
+      // Workspace selection
+      setSelectedWorkspace: (id, name) => set({
+        selectedWorkspaceId: id,
+        selectedWorkspaceName: name,
+      }),
+      
+      clearSelectedWorkspace: () => set({
+        selectedWorkspaceId: null,
+        selectedWorkspaceName: null,
+      }),
     }),
     {
       name: 'complyos-auth', // localStorage key
@@ -77,6 +117,8 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         selectedBusinessId: state.selectedBusinessId,
         selectedBusinessName: state.selectedBusinessName,
+        selectedWorkspaceId: state.selectedWorkspaceId,
+        selectedWorkspaceName: state.selectedWorkspaceName,
       }),
     }
   )
