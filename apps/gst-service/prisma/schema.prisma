@@ -51,6 +51,10 @@ model Tenant {
   invitations     Invitation[]
   audits          AuditLog[]
   webhooks        Webhook[]
+  vendors        Vendor[]
+  documents      Document[]
+  notifications  Notification[]
+  aiConversations AiConversation[]
   
   @@map("tenants")
 }
@@ -266,6 +270,8 @@ model Business {
   returns       GstReturn[]
   notices       Notice[]
   vendors       Vendor[]
+  gstr2bInvoices Gstr2bInvoice[]
+  documents      Document[]
   reconciliations Reconciliation[]
   
   @@map("businesses")
@@ -904,6 +910,7 @@ model AuditLog {
   timestamp     DateTime @default(now())
   
   tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  user           User?    @relation(fields: [userId], references: [id])
   
   @@index([tenantId, timestamp])
   @@index([userId, timestamp])
