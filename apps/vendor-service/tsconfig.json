@@ -1,1 +1,24 @@
-{"compilerOptions":{"module":"commonjs","declaration":true,"removeComments":true,"emitDecoratorMetadata":true,"experimentalDecorators":true,"target":"ES2021","sourceMap":true,"outDir":"./dist","skipLibCheck":true,"strictNullChecks":false,"esModuleInterop":true},"include":["src/**/*"],"exclude":["node_modules","dist","**/__tests__/**","**/*.spec.ts","**/*.test.ts"]}
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "esModuleInterop": true,
+    "paths": {
+      "@/*": ["src/*"],
+      "@complyos/database": ["../../packages/database/src"],
+      "@complyos/shared": ["../../packages/shared/src"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/__tests__/**", "**/*.spec.ts", "**/*.test.ts"]
+}

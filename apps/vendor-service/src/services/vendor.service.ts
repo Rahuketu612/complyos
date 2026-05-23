@@ -67,7 +67,7 @@ export class VendorService {
       state: dto.state,
       msmeRegistered: dto.msmeRegistered,
       msmeType: dto.msmeType,
-    }, 'VENDOR_ACTION');
+    });
 
     return vendor;
   }
@@ -208,7 +208,7 @@ export class VendorService {
     // Audit log
     await this.logAudit(vendor.tenantId, undefined, 'vendor_updated', 'Vendor', vendor.id, {
       updatedFields: Object.keys(dto),
-    }, 'VENDOR_ACTION');
+    });
 
     return updated;
   }
@@ -311,7 +311,7 @@ export class VendorService {
     await this.logAudit(vendor.tenantId, undefined, 'invoices_imported', 'Gstr2bInvoice', vendorId, {
       period,
       count: imported.length,
-    }, 'GST_ACTION');
+    });
 
     return {
       imported: imported.length,
@@ -486,7 +486,7 @@ export class VendorService {
         _count: true,
       }),
       this.prisma.notice.count({
-        where: { businessId, status: 'RECEIVED' as const },
+        where: { businessId, status: 'RECEIVED' },
       }),
       // Get upcoming GSTR-1/3B due within 7 days
       this.prisma.gstReturn.findMany({
@@ -607,8 +607,7 @@ export class VendorService {
     entityType: string,
     entityId: string,
     values: any,
-    eventCategory?: string,
-    correlationId?: string,
+    
   ): Promise<void> {
     await this.prisma.auditLog.create({
       data: {
@@ -617,8 +616,7 @@ export class VendorService {
         action,
         entityType,
         entityId,
-        eventCategory: eventCategory as any,
-        correlationId,
+        
         newValues: values,
       },
     }).catch(() => {});

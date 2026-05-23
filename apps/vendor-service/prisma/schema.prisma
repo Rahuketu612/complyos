@@ -16,46 +16,57 @@ datasource db {
 // ============================================
 
 model Tenant {
-  id                String   @id @default(uuid())
-  name              String
-  slug              String   @unique
-  logoUrl           String?
-  address           String?
-  city              String?
-  state             String?
-  pincode           String?
-  
+  id      String  @id @default(uuid())
+  name    String
+  slug    String  @unique
+  logoUrl String?
+  address String?
+  city    String?
+  state   String?
+  pincode String?
+
   // Subscription
-  subscriptionPlan  String   @default("free") // free, starter, professional, enterprise
-  subscriptionStatus String  @default("active")
-  trialEndsAt       DateTime?
-  
+  subscriptionPlan   String    @default("free") // free, starter, professional, enterprise
+  subscriptionStatus String    @default("active")
+  trialEndsAt        DateTime?
+
   // Features
-  maxUsers          Int      @default(5)
-  maxBusinesses     Int      @default(10)
-  enableAi         Boolean  @default(true)
-  enableAuditor    Boolean  @default(false)
-  
+  maxUsers      Int     @default(5)
+  maxBusinesses Int     @default(10)
+  enableAi      Boolean @default(true)
+  enableAuditor Boolean @default(false)
+
   // Security
-  mfaEnabled        Boolean  @default(false)
-  ssoEnabled       Boolean  @default(false)
-  ssoProvider      String?
-  
+  mfaEnabled  Boolean @default(false)
+  ssoEnabled  Boolean @default(false)
+  ssoProvider String?
+
   // Timestamps
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  users            User[]
-  businesses       Business[]
-  invitations     Invitation[]
-  audits          AuditLog[]
-  webhooks        Webhook[]
-  vendors        Vendor[]
-  documents      Document[]
-  notifications  Notification[]
-  aiConversations AiConversation[]
-  
+  users         User[]
+  businesses    Business[]
+  invitations   Invitation[]
+  audits        AuditLog[]
+  webhooks      Webhook[]
+  vendors       Vendor[]
+  documents     Document[]
+  notifications Notification[]
+  conversations AiConversation[]
+  firms         Firm[]
+  workspaces    ClientWorkspace[]
+  documentsVault DocumentVault[]
+  complianceTasks ComplianceTask[]
+  userNotifications UserNotification[]
+  notices       Notice[]
+  noticeActivities NoticeActivity[]
+  aiActionLogs  AIActionLog[]
+  communicationThreads CommunicationThread[]
+  communicationMessages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
+
   @@map("tenants")
 }
 
@@ -83,98 +94,120 @@ enum UserStatus {
 }
 
 model User {
-  id              String    @id @default(uuid())
-  tenantId        String
-  email           String
-  passwordHash   String
-    
+  id           String @id @default(uuid())
+  tenantId     String
+  email        String
+  passwordHash String
+
   // Profile
   firstName       String
-  lastName       String
-  phone          String?
+  lastName        String
+  phone           String?
   profileImageUrl String?
-  
+
   // Role & Status
-  role           UserRole  @default(viewer)
-  status         UserStatus @default(active)
-  emailVerified  Boolean  @default(false)
-  phoneVerified  Boolean  @default(false)
-  
+  role          UserRole   @default(viewer)
+  status        UserStatus @default(active)
+  emailVerified Boolean    @default(false)
+  phoneVerified Boolean    @default(false)
+
   // MFA
-  mfaEnabled     Boolean  @default(false)
-  mfaSecret     String?
-  
+  mfaEnabled Boolean @default(false)
+  mfaSecret  String?
+
   // Last Activity
-  lastLoginAt    DateTime?
-  lastLoginIp   String?
-  loginCount    Int      @default(0)
-  
+  lastLoginAt DateTime?
+  lastLoginIp String?
+  loginCount  Int       @default(0)
+
   // Preferences
-  preferences    Json     @default("{}")
-  
+  preferences Json @default("{}")
+
   // Timestamps
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  sessions       Session[]
-  auditLogs      AuditLog[]
-  
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  sessions  Session[]
+  auditLogs AuditLog[]
+  workspaceMemberships WorkspaceMember[]
+  assignedTasks ComplianceTask[] @relation("TaskAssignee")
+  createdTasks ComplianceTask[] @relation("TaskCreator")
+  notifications Notification[]
+  userNotifications UserNotification[]
+  uploadedDocuments DocumentVault[]
+  conversations AiConversation[]
+  assignedNotices Notice[] @relation("NoticeAssignee")
+  noticeActivities NoticeActivity[]
+  linkedDocuments NoticeDocument[] @relation("DocLinker")
+  linkedTasks NoticeTask[] @relation("TaskLinker")
+  aiActionLogs AIActionLog[]
+  createdThreads CommunicationThread[] @relation("ThreadCreator")
+  assignedThreads CommunicationThread[] @relation("ThreadAssignee")
+  messages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
+
   @@unique([tenantId, email])
   @@map("users")
 }
 
 model Session {
-  id            String   @id @default(uuid())
-  userId        String
-  tenantId      String
-  
+  id       String @id @default(uuid())
+  userId   String
+  tenantId String
+
   // Token Info
-  accessToken   String   @unique
-  refreshToken String? @unique
-  tokenExpiry  DateTime
+  accessToken        String    @unique
+  refreshToken       String?   @unique
+  tokenExpiry        DateTime
   refreshTokenExpiry DateTime?
-  
+
+  // Token Family (for rotation tracking)
+  tokenFamily String? // Groups rotated tokens together
+  rotationCount Int    @default(0)
+
   // Device Info
-  deviceId     String?
-  deviceName  String?
-  ipAddress   String?
-  userAgent   String?
-  
+  deviceId   String?
+  deviceName String?
+  ipAddress  String?
+  userAgent  String?
+
   // Status
-  isRevoked   Boolean  @default(false)
-  revokedAt  DateTime?
-  
-  createdAt   DateTime @default(now())
-  
-  user        User    @relation(fields: [userId], references: [id])
-  
+  isRevoked Boolean   @default(false)
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRevoked])
+  @@index([tokenFamily, isRevoked])
   @@map("sessions")
 }
 
 model Invitation {
-  id          String   @id @default(uuid())
-  tenantId    String
-  email      String
-  
+  id       String @id @default(uuid())
+  tenantId String
+  email    String
+
   // Invitation Details
   role       UserRole @default(viewer)
   invitedBy  String
   businessId String?
-  
+
   // Token
-  token      String   @unique
-  expiresAt  DateTime
-  
+  token     String   @unique
+  expiresAt DateTime
+
   // Status
   acceptedAt DateTime?
   acceptedIp String?
-  
-  createdAt  DateTime @default(now())
-  
-  tenant    Tenant  @relation(fields: [tenantId], references: [id])
-  
+
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
   @@unique([tenantId, email])
   @@map("invitations")
 }
@@ -205,103 +238,106 @@ enum BusinessStatus {
 }
 
 model Business {
-  id              String       @id @default(uuid())
-  tenantId        String
-  
+  id       String @id @default(uuid())
+  tenantId String
+
   // Entity Identity
-  name            String
-  tradeName       String?
-  
+  name      String
+  tradeName String?
+
   // Indian IDs
-  pan             String       @unique // Mandatory
-  panLinkedEmail  String?
-  tan             String?
-  cin             String?
-  llpin           String?
-  gstin           String?     @unique
-  
+  pan            String  @unique // Mandatory
+  panLinkedEmail String?
+  tan            String?
+  cin            String?
+  llpin          String?
+  gstin          String? @unique
+
   // Entity Details
-  entityType      EntityType   @default(proprietary)
+  entityType          EntityType @default(proprietary)
   dateOfIncorporation DateTime?
-  commencementDate DateTime?
-  
+  commencementDate    DateTime?
+
   // Industry & Classification
-  industry        String?
-  nicCode        String?
-  sector         String?
-  subSector      String?
-  
+  industry  String?
+  nicCode   String?
+  sector    String?
+  subSector String?
+
   // Scale
-  annualTurnover Decimal?
-  employeeCount  Int?
+  annualTurnover      Decimal?
+  employeeCount       Int?
   registeredEmployees Int?
-  
+
   // Addresses
-  registeredAddress  String?
+  registeredAddress     String?
   principalPlaceAddress String?
-  additionalPlaces  Json? // []
-  
+  additionalPlaces      Json? // []
+
   // Contact
-  contactPerson  String?
-  contactEmail String?
-  contactPhone String?
-  
+  contactPerson String?
+  contactEmail  String?
+  contactPhone  String?
+
   // Compliance Applicability
-  gstApplicable     Boolean @default(false)
-  epfApplicable    Boolean @default(false)
-  esicApplicable   Boolean @default(false)
-  tdsApplicable    Boolean @default(false)
-  ptApplicable    Boolean @default(false)
-  
+  gstApplicable  Boolean @default(false)
+  epfApplicable  Boolean @default(false)
+  esicApplicable Boolean @default(false)
+  tdsApplicable  Boolean @default(false)
+  ptApplicable   Boolean @default(false)
+
   // Compliance Health
-  complianceScore Int      @default(75)
-  healthStatus   String   @default("good") // excellent, good, fair, poor,critical
-  
+  complianceScore Int    @default(75)
+  healthStatus    String @default("good") // excellent, good, fair, poor,critical
+
   // Status
-  status         BusinessStatus @default(active)
-  
+  status BusinessStatus @default(active)
+
   // Timestamps
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  registrations Registration[]
-  returns       GstReturn[]
-  notices       Notice[]
-  vendors       Vendor[]
-  gstr2bInvoices Gstr2bInvoice[]
-  documents      Document[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  registrations   Registration[]
+  returns         GstReturn[]
+  workspaces      ClientWorkspace[]
+  complianceTasks ComplianceTask[]
+  notices         Notice[]
+  vendors         Vendor[]
   reconciliations Reconciliation[]
-  
+  documents       Document[]
+  invoices        Gstr2bInvoice[]
+  communicationThreads CommunicationThread[]
+
   @@map("businesses")
 }
 
 model Registration {
-  id              String   @id @default(uuid())
-  businessId      String
-  
+  id         String @id @default(uuid())
+  businessId String
+
   // Registration Type
-  type           String   // GST, EPFO, ESIC, TDS, PT, TAN, etc.
+  type               String // GST, EPFO, ESIC, TDS, PT, TAN, etc.
   registrationNumber String
-  link            String?  // Portal link
-  
+  link               String? // Portal link
+
   // Validity
   dateOfRegistration DateTime?
-  validFrom       DateTime?
-  validTo         DateTime?
-  status          String   // active, cancelled, surrendered, suspended
-  
+  validFrom          DateTime?
+  validTo            DateTime?
+  status             String // active, cancelled, surrendered, suspended
+
   // Additional Info
-  jurisdiction   String?
-  circle         String?
-  ward           String?
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  business       Business @relation(fields: [businessId], references: [id])
-  
+  jurisdiction String?
+  circle       String?
+  ward         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
   @@unique([businessId, type])
   @@map("registrations")
 }
@@ -335,144 +371,46 @@ enum FilingStatus {
 }
 
 model GstReturn {
-  id              String       @id @default(uuid())
-  businessId      String
-  financialYear   String
-  taxPeriod       String       // Monthly: "2024-04", Quarterly: "2024-Q1"
-  
+  id            String @id @default(uuid())
+  businessId    String
+  financialYear String
+  taxPeriod     String // Monthly: "2024-04", Quarterly: "2024-Q1"
+
   // Return Details
-  formType        GstrFormType
-  formNumber     String?
-  
+  formType   GstrFormType
+  formNumber String?
+
   // Filing Info
-  status         FilingStatus  @default(not_filed)
-  dueDate        DateTime?
-  filedDate     DateTime?
-  ackNumber    String?
-  ackDate      DateTime?
-  arn          String?
-  
+  status    FilingStatus @default(not_filed)
+  dueDate   DateTime?
+  filedDate DateTime?
+  ackNumber String?
+  ackDate   DateTime?
+  arn       String?
+
   // Amounts
-  totalLiability  Decimal    @default(0)
-  cashLiability   Decimal    @default(0)
-  itcAvailable   Decimal    @default(0)
-  itcUsed        Decimal    @default(0)
-  taxPaid        Decimal    @default(0)
-  interestPaid   Decimal    @default(0)
-  penaltyPaid   Decimal    @default(0)
-  lateFeePaid   Decimal    @default(0)
-  
+  totalLiability Decimal @default(0)
+  cashLiability  Decimal @default(0)
+  itcAvailable   Decimal @default(0)
+  itcUsed        Decimal @default(0)
+  taxPaid        Decimal @default(0)
+  interestPaid   Decimal @default(0)
+  penaltyPaid    Decimal @default(0)
+  lateFeePaid    Decimal @default(0)
+
   // Delay Info
-  delayDays     Int?
-  
+  delayDays Int?
+
   // JSON Data
-  summary       Json?
-  
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  business      Business    @relation(fields: [businessId], references: [id])
-  
+  summary Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
   @@unique([businessId, formType, taxPeriod])
   @@map("gst_returns")
-}
-
-// ============================================
-// GST NOTICES & COMMUNICATIONS
-// ============================================
-
-enum NoticeType {
-  gstr1_not_filed
-  gstr3b_not_filed
-  tax_demand
-  refund_rejection
-  ITC_mismatch
-  scrutiny
-  audit
-  inspection
-  summons
-  penalty
-  compoundable_offense
-  cancellation
-  provisional_attachment
-  OTHER
-}
-
-enum NoticeSeverity {
-  info
-  low
-  medium
-  high
-  critical
-}
-
-enum NoticeStatus {
-  received
-  viewed
-  under_review
-  response_drafting
-  response_submitted
-  hearing_scheduled
-  resolved
-  appeal_filed
-  pending_payment
-  disputed
-}
-
-model Notice {
-  id              String       @id @default(uuid())
-  businessId      String
-  
-  // Notice Identification
-  noticeNumber   String?
-  referenceNumber String?
-  noticeDate     DateTime?
-  noticeType    NoticeType
-  noticeCategory String?
-  
-  // Severity & Status
-  severity       NoticeSeverity @default(medium)
-  status         NoticeStatus    @default(received)
-  
-  // Amount
-  demandedAmount Decimal     @default(0)
-  penaltyAmount  Decimal     @default(0)
-  totalAmount   Decimal     @default(0)
-  paidAmount   Decimal     @default(0)
-  
-  // Key Dates
-  dueDate        DateTime?
-  responseDueDate DateTime?
-  hearingDate   DateTime?
-  resolvedDate  DateTime?
-  
-  // Source
-  source         String      @default("portal") // portal, email, manual
-  sourceReference String?
-  
-  // Description
-  title          String?
-  description    String?
-  
-  // AI Analysis
-  aiSummary      String?
-  aiRiskLevel    String?
-  aiActionItems  Json? // []
-  aiConfidence   Float?
-  
-  // Response
-  responseDate   DateTime?
-  responseDocUrl String?
-  
-  // Timeline Events
-  events         Json? // [{date, action, by}]
-  
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  
-  business       Business    @relation(fields: [businessId], references: [id])
-  
-  @@map("notices")
 }
 
 // ============================================
@@ -480,33 +418,33 @@ model Notice {
 // ============================================
 
 model GstLedger {
-  id              String   @id @default(uuid())
-  businessId      String
-  ledgerType      String   // cash, credit, liability
-  
+  id         String @id @default(uuid())
+  businessId String
+  ledgerType String // cash, credit, liability
+
   // Entry Details
   date            DateTime
-  transactionType String  // payment, credit, debit, adjustment, refund
-  description    String?
-  
+  transactionType String // payment, credit, debit, adjustment, refund
+  description     String?
+
   // Amounts
-  amount          Decimal
-  sgst            Decimal  @default(0)
-  cgst            Decimal  @default(0)
-  igst            Decimal  @default(0)
-  cess           Decimal   @default(0)
-  
+  amount Decimal
+  sgst   Decimal @default(0)
+  cgst   Decimal @default(0)
+  igst   Decimal @default(0)
+  cess   Decimal @default(0)
+
   // Reference
-  returnId       String?
-  challengeId   String?
-  paymentRef    String?
-  doctype       String?
-  
-  balance        Decimal
-  isReversal     Boolean  @default(false)
-  
-  createdAt      DateTime  @default(now())
-  
+  returnId    String?
+  challengeId String?
+  paymentRef  String?
+  doctype     String?
+
+  balance    Decimal
+  isReversal Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
   @@index([businessId, date])
   @@map("gst_ledger")
 }
@@ -530,110 +468,123 @@ enum VendorRiskLevel {
   critical
 }
 
+// MSME Classification
+enum MsmeType {
+  MICRO
+  SMALL
+  MEDIUM
+}
+
 model Vendor {
-  id              String        @id @default(uuid())
-  tenantId        String
-  businessId      String
-  
+  id         String @id @default(uuid())
+  tenantId   String
+  businessId String
+
   // Vendor Identity
-  name            String
-  tradeName       String?
-  
+  name      String
+  tradeName String?
+
   // Indian IDs
-  gstin           String       @unique
-  pan             String?
-  tan             String?
-  
+  gstin String  @unique
+  pan   String?
+  tan   String?
+
   // Address
-  address         String?
-  state           String?
-  pincode         String?
-  
+  address String?
+  state   String?
+  pincode String?
+
   // Business Type
-  entityType      EntityType?
-  
+  entityType EntityType?
+
+  // MSME Compliance (Delayed Payment Act)
+  msmeRegistered Boolean  @default(false)
+  udyamNumber    String?
+  msmeType       MsmeType?
+  paymentDueDays Int      @default(30) // Standard payment terms
+
   // Compliance Score
-  complianceScore Int         @default(70)
+  complianceScore Int             @default(70)
   riskLevel       VendorRiskLevel @default(low_risk)
-  lastGstr1Filed DateTime?
+  lastGstr1Filed  DateTime?
   lastGstr3BFiled DateTime?
-  
+
   // Counts
-  totalInvoices   Int         @default(0)
-  matchedInvoices Int        @default(0)
-  unmatchedInvoices Int     @default(0)
-  missingInvoices Int       @default(0)
-  
+  totalInvoices     Int @default(0)
+  matchedInvoices   Int @default(0)
+  unmatchedInvoices Int @default(0)
+  missingInvoices   Int @default(0)
+
   // ITC Exposure
-  itcClaimed     Decimal    @default(0)
-  itcAtRisk      Decimal    @default(0)
-  itcBlocked    Decimal    @default(0)
-  
+  itcClaimed Decimal @default(0)
+  itcAtRisk  Decimal @default(0)
+  itcBlocked Decimal @default(0)
+
   // Status
-  status         VendorStatus @default(active)
-  statusReason   String?
-  
+  status       VendorStatus @default(active)
+  statusReason String?
+
   // Timestamps
-  firstSeenAt    DateTime   @default(now())
-  lastSeenAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   // Relations
-  tenant         Tenant     @relation(fields: [tenantId], references: [id])
-  business      Business   @relation(fields: [businessId], references: [id])
-  invoices      Gstr2bInvoice[]
-  
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  business Business        @relation(fields: [businessId], references: [id])
+  invoices Gstr2bInvoice[]
+
   @@unique([tenantId, gstin, businessId])
   @@map("vendors")
 }
 
 model Gstr2bInvoice {
-  id              String    @id @default(uuid())
-  vendorId        String
-  businessId     String
-  period         String    // "2024-04"
-  
+  id         String @id @default(uuid())
+  vendorId   String
+  businessId String
+  period     String // "2024-04"
+
   // Invoice Details
-  invoiceNumber  String
+  invoiceNumber String
   invoiceDate   DateTime
   invoiceValue  Decimal
-  
+
   // GSTR-2B Data
-  gstr2bInvoiceType String? // credit, debit
+  gstr2bInvoiceType  String? // credit, debit
   gstr2bFilingStatus String? // filed, matched, missing, excess
-  
+
   // Match Result
-  matchStatus   String? // matched, missing, mismatch, duplicate
+  matchStatus     String? // matched, missing, mismatch, duplicate
   matchDifference Decimal? // Value difference
-  
+
   // Rates
-  rate          Decimal?
-  taxableValue  Decimal?
-  sgst          Decimal?
-  cgst          Decimal?
-  igst          Decimal?
-  cess          Decimal?
-  
+  rate         Decimal?
+  taxableValue Decimal?
+  sgst         Decimal?
+  cgst         Decimal?
+  igst         Decimal?
+  cess         Decimal?
+
   // Reverse Charge
   reverseCharge Boolean @default(false)
-  
+
   // Position
-  pos           String?  // State of supply
-  
+  pos String? // State of supply
+
   // Source
-  source        String? // portal, 2a_auto, 2a_manual, manual
-  
+  source String? // portal, 2a_auto, 2a_manual, manual
+
   // ITC
-  itcEligible   Boolean @default(true)
-  itcClaimed    Decimal @default(0)
-  
+  itcEligible Boolean @default(true)
+  itcClaimed  Decimal @default(0)
+
   // Dates
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  vendor        Vendor   @relation(fields: [vendorId], references: [id])
-  business      Business @relation(fields: [businessId], references: [id])
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vendor   Vendor   @relation(fields: [vendorId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
   @@unique([vendorId, invoiceNumber, period])
   @@index([businessId, period])
   @@map("gstr2b_invoices")
@@ -658,52 +609,52 @@ enum ReconcileType {
 }
 
 model Reconciliation {
-  id              String        @id @default(uuid())
-  businessId      String
-  
+  id         String @id @default(uuid())
+  businessId String
+
   // Period
-  period         String
+  period        String
   reconcileType ReconcileType
-  
+
   // Books Data
-  booksTotal    Decimal
+  booksTotal        Decimal
   booksInvoiceCount Int
-  
+
   // GSTR-2B Data
-  gstr2bTotal   Decimal
+  gstr2bTotal        Decimal
   gstr2bInvoiceCount Int
-  
+
   // Variance
-  varianceAmount Decimal    @default(0)
+  varianceAmount  Decimal @default(0)
   variancePercent Float?
-  
+
   // Breakdown
-  matchedAmount  Decimal    @default(0)
-  missingAmount Decimal    @default(0)
-  mismatchAmount Decimal   @default(0)
-  duplicateAmount Decimal  @default(0)
-  blockedAmount Decimal   @default(0)
-  
+  matchedAmount   Decimal @default(0)
+  missingAmount   Decimal @default(0)
+  mismatchAmount  Decimal @default(0)
+  duplicateAmount Decimal @default(0)
+  blockedAmount   Decimal @default(0)
+
   // Counts
-  matchedInvoices Int     @default(0)
-  missingInvoices Int    @default(0)
-  mismatchInvoices Int   @default(0)
-  duplicateInvoices Int  @default(0)
-  
+  matchedInvoices   Int @default(0)
+  missingInvoices   Int @default(0)
+  mismatchInvoices  Int @default(0)
+  duplicateInvoices Int @default(0)
+
   // Status
-  status        ReconcileStatus @default(pending)
-  completedAt   DateTime?
-  completedBy  String?
-  
+  status      ReconcileStatus @default(pending)
+  completedAt DateTime?
+  completedBy String?
+
   // Notes
-  notes         String?
-  actionItems  Json? // []
-  
-  createdAt    DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  business    Business  @relation(fields: [businessId], references: [id])
-  
+  notes       String?
+  actionItems Json? // []
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
   @@unique([businessId, period])
   @@map("reconciliations")
 }
@@ -731,29 +682,29 @@ enum TimelineEventType {
 }
 
 model TimelineEvent {
-  id              String          @id @default(uuid())
-  tenantId        String
-  businessId     String?
-  userId         String?
-  
+  id         String  @id @default(uuid())
+  tenantId   String
+  businessId String?
+  userId     String?
+
   // Event Details
-  eventType      TimelineEventType
-  title         String
-  description   String?
-  
+  eventType   TimelineEventType
+  title       String
+  description String?
+
   // Metadata
-  metadata       Json? // Flexible key-value
-  
+  metadata Json? // Flexible key-value
+
   // Related Entities
   relatedEntityType String?
-  relatedEntityId String?
-  
+  relatedEntityId   String?
+
   // Severity (for alerts)
-  severity       String? // info, success, warning, error
-  
+  severity String? // info, success, warning, error
+
   // Timestamp
-  timestamp     DateTime @default(now())
-  
+  timestamp DateTime @default(now())
+
   @@index([tenantId, timestamp])
   @@index([businessId, timestamp])
   @@map("timeline_events")
@@ -782,45 +733,70 @@ enum DocumentStatus {
   archived
 }
 
+// Retention policy constants (in years)
+// GST_RECORDS: 6 years per GST Act
+// INCOME_TAX: 8 years per Income Tax Act
+// TDS_RECORDS: 7 years
+// COMPANY_RECORDS: 8 years
+// AUDIT_WORKPAPERS: 8 years
+// CONTRACTS: 8 years from expiry
+// PERSONAL_DATA: DPDP Act - as long as purpose exists
+// DEFAULT: 7 years standard
+enum RetentionCategory {
+  GST_RECORDS
+  INCOME_TAX
+  TDS_RECORDS
+  COMPANY_RECORDS
+  AUDIT_WORKPAPERS
+  CONTRACTS
+  PERSONAL_DATA
+  DEFAULT
+}
+
 model Document {
-  id              String       @id @default(uuid())
-  tenantId        String
-  businessId      String?
-  
+  id         String  @id @default(uuid())
+  tenantId   String
+  businessId String?
+
   // File Details
-  fileName        String
-  originalName    String
-  fileType        String
-  mimeType        String
-  size            Int
-  
+  fileName     String
+  originalName String
+  fileType     String
+  mimeType     String
+  size         Int
+
   // Storage
-  storageKey     String      // S3 key
-  storageUrl     String?
-  encryptionKey  String?
-  
+  storageKey    String // S3 key
+  storageUrl    String?
+  encryptionKey String?
+
   // Document Classification
-  documentType   DocumentType @default(other)
+  documentType   DocumentType   @default(other)
   documentStatus DocumentStatus @default(uploaded)
-  
+
   // Extracted Data (OCR)
-  ocrText        String?
-  extractedData  Json?
-  
+  ocrText       String?
+  extractedData Json?
+
   // Tags & Metadata
-  tags           String[]   // ["gst", "notice", "2024"]
-  metadata       Json?
-  
+  tags     String[] // ["gst", "notice", "2024"]
+  metadata Json?
+
   // Hash for integrity
-  checksum       String?
-  
+  checksum String?
+
+  // CERT-In / Compliance: Document retention
+  retentionCategory  RetentionCategory @default(GST_RECORDS)
+  retentionUntil     DateTime?        // Auto-computed based on category
+  destroyAfterRetain Boolean          @default(false) // Flag for scheduled destruction
+
   // Timestamps
-  uploadedAt    DateTime   @default(now())
-  processedAt   DateTime?
-  
-  tenant         Tenant    @relation(fields: [tenantId], references: [id])
-  business       Business? @relation(fields: [businessId], references: [id])
-  
+  uploadedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  business Business? @relation(fields: [businessId], references: [id])
+
   @@map("documents")
 }
 
@@ -844,37 +820,38 @@ enum NotificationStatus {
 }
 
 model Notification {
-  id              String             @id @default(uuid())
-  tenantId        String
-  userId         String?
-  businessId    String?
-  
+  id         String  @id @default(uuid())
+  tenantId   String
+  userId     String?
+  businessId String?
+
   // Notification Content
-  type           String             // filing_due, notice_received, etc.
-  channel        NotificationChannel @default(in_app)
-  title          String
-  message        String
-  actionUrl      String?
-  
+  type      String // filing_due, notice_received, etc.
+  channel   NotificationChannel @default(in_app)
+  title     String
+  message   String
+  actionUrl String?
+
   // Delivery
-  status         NotificationStatus @default(pending)
-  sentAt        DateTime?
-  deliveredAt  DateTime?
-  
+  status      NotificationStatus @default(pending)
+  sentAt      DateTime?
+  deliveredAt DateTime?
+
   // Failure Info
   failureReason String?
-  retryCount   Int        @default(0)
-  
+  retryCount    Int     @default(0)
+
   // Scheduling
-  scheduledFor  DateTime?
-  
+  scheduledFor DateTime?
+
   // Click Tracking
-  clickedAt     DateTime?
-  
-  createdAt    DateTime @default(now())
-  
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  
+  clickedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
   @@index([tenantId, status])
   @@map("notifications")
 }
@@ -883,37 +860,64 @@ model Notification {
 // AUDIT & LOGGING
 // ============================================
 
+// CERT-In compliant event categories
+enum AuditEventCategory {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  TOKEN_REFRESH
+  GST_ACTION
+  VENDOR_ACTION
+  DATA_EXPORT
+  ADMIN_ACTION
+  SECURITY_INCIDENT
+  DATA_ACCESS
+  DATA_MODIFICATION
+  SYSTEM_CONFIG
+}
+
 model AuditLog {
-  id              String   @id @default(uuid())
-  tenantId        String
-  userId         String?
-  
+  id       String  @id @default(uuid())
+  tenantId String
+  userId   String?
+
   // Action
-  action         String   // login, create, update, delete, etc.
-  entityType     String   // User, Business, Notice, etc.
-  entityId       String?
-  
+  action     String // login, create, update, delete, etc.
+  entityType String // User, Business, Notice, etc.
+  entityId   String?
+
+  // CERT-In: Event category for security classification
+  eventCategory AuditEventCategory?
+
   // Changes
-  oldValues      Json?
-  newValues     Json?
-  
+  oldValues Json?
+  newValues Json?
+
+  // CERT-In: Correlation ID for request tracing
+  correlationId String?
+
   // Request Info
-  ipAddress      String?
+  ipAddress     String?
   userAgent     String?
   requestMethod String?
   requestPath   String?
-  
+
   // Result
-  success        Boolean  @default(true)
-  errorMessage  String?
-  
-  timestamp     DateTime @default(now())
-  
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  user           User?    @relation(fields: [userId], references: [id])
-  
+  success      Boolean @default(true)
+  errorMessage String?
+
+  // CERT-In: Immutable hash chain for tamper detection
+  previousHash String? // Hash of previous audit log entry
+  checksum     String?  // SHA-256 of (timestamp + action + entityType + entityId + userId + correlationId + success)
+
+  timestamp DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
   @@index([tenantId, timestamp])
   @@index([userId, timestamp])
+  @@index([eventCategory, timestamp])
   @@map("audit_logs")
 }
 
@@ -922,29 +926,29 @@ model AuditLog {
 // ============================================
 
 model Webhook {
-  id              String   @id @default(uuid())
-  tenantId        String
-  
+  id       String @id @default(uuid())
+  tenantId String
+
   // Configuration
-  name           String
-  url            String
-  secret         String?
-  
+  name   String
+  url    String
+  secret String?
+
   // Events
-  events         String[] // ["notice.received", "return.filed"]
-  
+  events String[] // ["notice.received", "return.filed"]
+
   // Status
-  enabled        Boolean  @default(true)
-  
+  enabled Boolean @default(true)
+
   // Stats
   lastTriggeredAt DateTime?
-  triggerCount   Int      @default(0)
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  
+  triggerCount    Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
   @@map("webhooks")
 }
 
@@ -953,69 +957,70 @@ model Webhook {
 // ============================================
 
 model KnowledgeArticle {
-  id              String   @id @default(uuid())
-  tenantId        String?
-  
+  id       String  @id @default(uuid())
+  tenantId String?
+
   // Content
-  title           String
-  content         String   @db.Text
-  summary         String?
-  
+  title   String
+  content String  @db.Text
+  summary String?
+
   // Category
-  category       String   // gst, income_tax, epfo, esic, compliance
-  tags            String[]
-  
+  category String // gst, income_tax, epfo, esic, compliance
+  tags     String[]
+
   // Source
-  source          String?
-  sourceUrl       String?
-  
+  source    String?
+  sourceUrl String?
+
   // Versioning
-  version         Int      @default(1)
-  isActive        Boolean  @default(true)
-  
+  version  Int     @default(1)
+  isActive Boolean @default(true)
+
   // Search
-  embedding       Bytes?   // pgvector embedding
-  
+  embedding Bytes? // pgvector embedding
+
   // Meta
-  authoredBy     String?
-  reviewedBy     String?
-  
-  createdAt      DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  authoredBy String?
+  reviewedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([category])
   @@map("knowledge_articles")
 }
 
 model AiConversation {
-  id              String   @id @default(uuid())
-  tenantId        String
-  userId         String
-  businessId    String?
-  
+  id         String  @id @default(uuid())
+  tenantId   String
+  userId     String
+  businessId String?
+
   // Messages
-  messages       Json     // [{role, content, timestamp}]
-  
+  messages Json // [{role, content, timestamp}]
+
   // Context
-  mode           String   // business_owner, accountant, ca, auditor, cfo
-  language       String   @default("en")
-  
+  mode     String // business_owner, accountant, ca, auditor, cfo
+  language String @default("en")
+
   // Tokens
-  promptTokens   Int      @default(0)
-  completionTokens Int   @default(0)
-  
+  promptTokens     Int @default(0)
+  completionTokens Int @default(0)
+
   // Rating
-  rating         Int?     // 1-5
-  feedback      String?
-  
+  rating   Int? // 1-5
+  feedback String?
+
   // Status
-  status         String   @default("active") // active, archived
-  
-  createdAt      DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  
+  status String @default("active") // active, archived
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
   @@map("ai_conversations")
 }
 
@@ -1024,69 +1029,921 @@ model AiConversation {
 // ============================================
 
 model ComplianceRule {
-  id              String   @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Rule Definition
-  name           String
-  slug           String   @unique
-  description   String?
-  
+  name        String
+  slug        String  @unique
+  description String?
+
   // Category
-  category       String   // applicability, threshold, deadline, penalty
-  complianceType String   // gst, epfo, esic, tds, pt
-  
+  category       String // applicability, threshold, deadline, penalty
+  complianceType String // gst, epfo, esic, tds, pt
+
   // Logic
-  ruleExpression  String   // JSON logic
-  ruleEngine    String   @default("static") // static, dynamic, ml
-  
+  ruleExpression String // JSON logic
+  ruleEngine     String @default("static") // static, dynamic, ml
+
   // Values
-  threshold      Decimal?
-  thresholdUnit  String?  // percentage, count, amount
-  
+  threshold     Decimal?
+  thresholdUnit String? // percentage, count, amount
+
   // Effective Dates
   effectiveFrom DateTime
   effectiveTo   DateTime?
-  
+
   // Jurisdiction
-  state         String?
-  jurisdiction  String?
-  
+  state        String?
+  jurisdiction String?
+
   // Status
-  isActive      Boolean  @default(true)
-  priority      Int      @default(0)
-  
-  createdAt     DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
+  isActive Boolean @default(true)
+  priority Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([slug, complianceType])
   @@map("compliance_rules")
 }
 
 model ComplianceSchedule {
-  id              String   @id @default(uuid())
+  id               String  @id @default(uuid())
   complianceRuleId String?
-  businessId     String
-  
+  businessId       String
+
   // Schedule
-  name           String
-  description   String?
-  
+  name        String
+  description String?
+
   // Frequency
-  frequency      String   // monthly, quarterly, yearly, adhoc
-  period         String?  // "April", "Q1", etc.
-  
+  frequency String // monthly, quarterly, yearly, adhoc
+  period    String? // "April", "Q1", etc.
+
   // Dates
-  dueDate       DateTime?
-  reminderDays Int      @default(7)
-  
+  dueDate      DateTime?
+  reminderDays Int       @default(7)
+
   // Status
-  status        String   @default("pending") // pending, completed, skipped, overdue
-  
-  completedAt   DateTime?
-  
-  createdAt    DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  status String @default("pending") // pending, completed, skipped, overdue
+
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([businessId, complianceRuleId, period])
   @@map("compliance_schedules")
+}
+
+// ============================================
+// CA FIRM & CLIENT WORKSPACE MANAGEMENT
+// ============================================
+
+model Firm {
+  id        String  @id @default(uuid())
+  tenantId  String
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  gstin     String? @unique
+  pan       String?
+
+  // Firm Type
+  firmType String? // sole_proprietorship, partnership, llp, company
+
+  // CA Association
+  caMemberId String? // Primary CA contact user ID
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  workspaces     ClientWorkspace[]
+  workspaceMembers WorkspaceMember[]
+
+  @@map("firms")
+}
+
+model ClientWorkspace {
+  id        String  @id @default(uuid())
+  firmId    String
+  businessId String? // Link to existing business if applicable
+  tenantId  String
+
+  name      String
+  description String?
+  logoUrl   String?
+
+  // Status
+  status String @default("active") // active, archived, suspended
+
+  // Settings
+  settings Json? // {features: [], integrations: {}}
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm       Firm             @relation(fields: [firmId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  business   Business?        @relation(fields: [businessId], references: [id])
+  members    WorkspaceMember[]
+  documents  DocumentVault[]
+  tasks      ComplianceTask[]
+  userNotifications UserNotification[]
+  notices     Notice[]
+  aiActionLogs AIActionLog[]
+  communicationThreads CommunicationThread[]
+  evidenceRequests EvidenceRequest[]
+
+  @@unique([firmId, businessId])
+  @@map("client_workspaces")
+}
+
+enum WorkspaceRole {
+  ADMIN
+  CA
+  ACCOUNTANT
+  CLIENT
+  VIEWER
+}
+
+model WorkspaceMember {
+  id          String @id @default(uuid())
+  workspaceId String
+  userId      String
+  firmId      String
+
+  // Role in workspace
+  role WorkspaceRole @default(CLIENT)
+
+  // Status
+  status String @default("active") // active, inactive, pending
+
+  // Metadata
+  invitedBy String?
+  joinedAt   DateTime  @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  firm      Firm             @relation(fields: [firmId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+// ============================================
+// DOCUMENT VAULT
+// ============================================
+
+enum DocumentVaultCategory {
+  GST_NOTICE
+  INVOICE
+  CHALLAN
+  ROC_FILING
+  TAX_DOCUMENT
+  BANK_STATEMENT
+  ANNUAL_RETURN
+  PROFIT_LOSS
+  BALANCE_SHEET
+  OTHER
+}
+
+model DocumentVault {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+
+  // File Metadata (not actual file storage)
+  fileName     String
+  originalName String
+  fileType     String  // pdf, xlsx, docx, etc.
+  mimeType     String
+  size         Int     // bytes
+
+  // Category
+  category DocumentVaultCategory @default(OTHER)
+
+  // Storage (S3 key reference, not actual file)
+  storageKey String?
+
+  // Integrity
+  fileHash String? // SHA-256 hash
+
+  // Organization
+  businessId    String?
+  uploadedBy    String
+  retentionCategory RetentionCategory @default(GST_RECORDS)
+  retentionUntil DateTime?
+  tags     String[]
+  notes    String?
+
+  // Status
+  status String @default("active") // active, archived, deleted
+
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  // Relations
+  workspace ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  uploader User      @relation(fields: [uploadedBy], references: [id])
+  noticeLinks NoticeDocument[]
+  communicationMessages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
+
+  @@index([workspaceId, category])
+  @@index([workspaceId, uploadedBy])
+  @@map("document_vault")
+}
+
+// ============================================
+// COMPLIANCE TASK TRACKER
+// ============================================
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ComplianceType {
+  GST
+  TDS
+  INCOME_TAX
+  ROC
+  EPFO
+  ESIC
+  PROFESSIONAL_TAX
+  OTHER
+}
+
+model ComplianceTask {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+
+  // Task Details
+  title       String
+  description String?
+
+  // Status & Priority
+  status     TaskStatus   @default(PENDING)
+  priority   TaskPriority @default(MEDIUM)
+  completedAt DateTime?
+
+  // Compliance Context
+  complianceType ComplianceType @default(GST)
+
+  // Dates
+  dueDate DateTime?
+
+  // Assignment
+  assignedTo   String? // userId
+  createdBy    String
+
+  // Links
+  linkedBusinessId String?
+
+  // Notes
+  notes String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace   ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  assignee   User?            @relation("TaskAssignee", fields: [assignedTo], references: [id])
+  creator    User             @relation("TaskCreator", fields: [createdBy], references: [id])
+  business   Business?        @relation(fields: [linkedBusinessId], references: [id])
+  noticeLinks NoticeTask[]
+  communicationThreads CommunicationThread[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, dueDate])
+  @@map("compliance_tasks")
+}
+
+// ============================================
+// NOTIFICATIONS (CA Practice)
+// ============================================
+
+enum NotificationType {
+  GST_NOTICE
+  RETURN_DUE
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  DOCUMENT_UPLOADED
+  SECURITY_ALERT
+  WORKSPACE_INVITE
+  SYSTEM
+}
+
+model UserNotification {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String?
+
+  // Type & Content
+  type    NotificationType
+  title   String
+  message String
+
+  // Data
+  data Json? // {taskId, documentId, workspaceId, etc.}
+
+  // Read Status
+  isRead  Boolean @default(false)
+  readAt  DateTime?
+
+  // Target
+  userId String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
+  workspace ClientWorkspace? @relation(fields: [workspaceId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([tenantId, createdAt])
+  @@map("user_notifications")
+}
+
+// ============================================
+// NOTICE MANAGEMENT (CA Practice)
+// ============================================
+
+enum NoticeStatus {
+  RECEIVED
+  UNDER_REVIEW
+  CLIENT_PENDING
+  DRAFT_PREPARED
+  RESPONSE_FILED
+  CLOSED
+}
+
+enum NoticeSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum NoticeType {
+  GST_SCRUTINY
+  GST_DEMAND
+  GST_ASSESSMENT
+  GST_PENALTY
+  GST_REFUND
+  GST_ARC
+  INCOME_TAX_SCRUTINY
+  INCOME_TAX_ASSESSMENT
+  INCOME_TAX_DEMAND
+  INCOME_TAX_PENALTY
+  TDS_DEFAULT
+  ROC_NON_COMPLIANCE
+  EPFO_DEMAND
+  ESIC_DEMAND
+  OTHER
+}
+
+model Notice {
+  id          String  @id @default(uuid())
+  workspaceId String
+  tenantId    String
+  businessId  String?
+
+  // Notice Identity
+  noticeNumber String? // Official notice number (e.g., "C.no.Ahd-EX-006/2024-25/1234")
+  noticeType   NoticeType @default(GST_SCRUTINY)
+
+  // Issuing Authority
+  issuingAuthority String? // e.g., "Superintendent, Ward 6, Ahmedabad"
+  assessmentYear  String? // e.g., "2022-23"
+
+  // Severity & Status
+  severity       NoticeSeverity @default(MEDIUM)
+  status         NoticeStatus   @default(RECEIVED)
+
+  // Dates
+  receivedDate     DateTime @default(now())
+  responseDueDate  DateTime?
+  closureDate      DateTime?
+
+  // Financial Impact
+  demandAmount  Decimal?  @db.Decimal(15, 2)
+  penaltyAmount Decimal?  @db.Decimal(15, 2)
+  interestAmount Decimal? @db.Decimal(15, 2)
+  totalLiability  Decimal? @db.Decimal(15, 2)
+
+  // Description
+  subject        String?
+  summary        String?
+  groundsOfNotice String? // Text content of notice
+
+  // Assignment
+  assignedTo String? // userId
+  assignedAt DateTime?
+
+  // Resolution
+  resolutionNotes String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  workspace     ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  business      Business?        @relation(fields: [businessId], references: [id])
+  assignee      User?            @relation("NoticeAssignee", fields: [assignedTo], references: [id])
+  activities    NoticeActivity[]
+  linkedDocuments NoticeDocument[]
+  linkedTasks    NoticeTask[]
+  communicationThreads CommunicationThread[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, severity])
+  @@index([responseDueDate])
+  @@index([assignedTo])
+  @@map("notices")
+}
+
+enum NoticeActivityAction {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  UNASSIGNED
+  COMMENT
+  DOCUMENT_LINKED
+  DOCUMENT_UNLINKED
+  TASK_CREATED
+  RESPONSE_FILED
+  CLOSED
+  REOPENED
+  UPDATED
+}
+
+model NoticeActivity {
+  id          String @id @default(uuid())
+  noticeId    String
+  tenantId    String
+
+  // Activity Details
+  action      NoticeActivityAction
+  comment     String?
+  previousValue String? // For status changes, etc.
+  newValue    String?
+
+  // Correlation for tracking related activities
+  correlationId String?
+
+  // Metadata
+  metadata Json? // Additional structured data
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  notice   Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  user     User   @relation(fields: [createdBy], references: [id])
+  createdBy String
+
+  @@index([noticeId, createdAt])
+  @@map("notice_activities")
+}
+
+// ============================================
+// AI COMPLIANCE ASSISTANT
+// ============================================
+
+enum AIPromptType {
+  NOTICE_SUMMARIZE
+  NOTICE_SUGGEST_TASKS
+  DASHBOARD_INSIGHTS
+  DOCUMENT_TAG
+  COMPLIANCE_ADVICE
+  CHAT
+}
+
+enum AIEntityType {
+  NOTICE
+  TASK
+  BUSINESS
+  DOCUMENT
+  WORKSPACE
+  VENDOR
+  RETURN
+}
+
+enum AIFeatureFlag {
+  ALL
+  INSIGHTS_ONLY
+  SUMMARIZE_ONLY
+  DISABLED
+}
+
+model AIActionLog {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String?
+  userId      String
+
+  // Action Details
+  promptType  AIPromptType
+  entityType  AIEntityType?
+  entityId    String?
+
+  // Model & Provider
+  provider    String? // openai, anthropic, local, mock
+  modelUsed   String?
+
+  // Token Usage
+  promptTokens    Int?
+  completionTokens Int?
+  totalTokens     Int?
+
+  // Performance
+  executionTimeMs Int?
+
+  // Request/Response
+  prompt       String?
+  response     String?
+  errorMessage String?
+
+  // Result
+  success      Boolean @default(true)
+
+  // Correlation
+  correlationId String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  user      User   @relation(fields: [userId], references: [id])
+  workspace ClientWorkspace? @relation(fields: [workspaceId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([userId, promptType])
+  @@index([entityType, entityId])
+  @@index([correlationId])
+  @@map("ai_action_logs")
+}
+
+// ============================================
+// CLIENT COMMUNICATION WORKFLOW
+// ============================================
+
+enum CommunicationType {
+  NOTICE
+  TASK
+  DOCUMENT_REQUEST
+  GENERAL
+  APPROVAL
+}
+
+enum ThreadStatus {
+  OPEN
+  WAITING_CLIENT
+  WAITING_INTERNAL
+  RESOLVED
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+  DOCUMENT
+  AI_SUMMARY
+}
+
+model CommunicationThread {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String
+  businessId  String?
+
+  // Thread Details
+  subject      String
+  type         CommunicationType
+  status       ThreadStatus @default(OPEN)
+  priority     TaskPriority @default(MEDIUM)
+
+  // Assignment
+  createdBy    String
+  assignedTo   String?
+
+  // Context (optional links to other entities)
+  noticeId     String?
+  taskId       String?
+  documentId   String?
+
+  // Summary
+  aiSummary    String? // AI-generated summary
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  resolvedAt   DateTime?
+
+  // Relations
+  tenant       Tenant @relation(fields: [tenantId], references: [id])
+  workspace    ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  business     Business? @relation(fields: [businessId], references: [id])
+  creator      User @relation("ThreadCreator", fields: [createdBy], references: [id])
+  assignee     User? @relation("ThreadAssignee", fields: [assignedTo], references: [id])
+  notice       Notice? @relation(fields: [noticeId], references: [id])
+  task         ComplianceTask? @relation(fields: [taskId], references: [id])
+  messages     CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
+
+  @@index([tenantId, workspaceId])
+  @@index([tenantId, status])
+  @@index([businessId])
+  @@index([noticeId])
+  @@index([assignedTo])
+  @@map("communication_threads")
+}
+
+model CommunicationMessage {
+  id          String @id @default(uuid())
+  tenantId    String
+  threadId    String
+
+  // Sender
+  senderId    String
+  senderRole  String // "ca", "client", "system", "ai"
+  senderName  String // Cached name for display
+
+  // Content
+  message     String
+  messageType MessageType @default(TEXT)
+
+  // Visibility
+  isInternalNote Boolean @default(false) // Only visible to CA/internal
+
+  // Document reference (if message references a document)
+  documentId  String?
+  document    DocumentVault? @relation(fields: [documentId], references: [id])
+
+  // AI
+  correlationId String? // Link to AIActionLog
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+
+  // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  thread      CommunicationThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      User @relation(fields: [senderId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([tenantId])
+  @@map("communication_messages")
+}
+
+// Evidence Request - Track document requests from clients
+enum EvidenceStatus {
+  REQUESTED
+  UPLOADED
+  VERIFIED
+  REJECTED
+}
+
+model EvidenceRequest {
+  id          String @id @default(uuid())
+  tenantId    String
+  threadId    String?
+
+  // Request details
+  title       String
+  description String?
+  dueDate     DateTime?
+
+  // Status tracking
+  status      EvidenceStatus @default(REQUESTED)
+
+  // Evidence (linked document)
+  documentId  String?
+  uploadedAt  DateTime?
+  verifiedAt  DateTime?
+  verifiedBy  String?
+  rejectReason String?
+
+  // Context
+  requesterId String
+  workspaceId String
+  noticeId    String?
+  taskId      String?
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  thread      CommunicationThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  document    DocumentVault? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  requester   User @relation(fields: [requesterId], references: [id])
+  workspace   ClientWorkspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([tenantId, workspaceId])
+  @@index([threadId])
+  @@index([status])
+  @@map("evidence_requests")
+}
+
+// ============================================
+// NOTICE-DOCUMENT LINKING (already defined above)
+// ============================================
+
+model NoticeDocument {
+  id          String   @id @default(uuid())
+  noticeId    String
+  documentId  String
+  linkedBy    String
+  linkedAt    DateTime @default(now())
+  notes       String?
+
+  notice   Notice      @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  document DocumentVault @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  linker   User         @relation("DocLinker", fields: [linkedBy], references: [id])
+
+  @@unique([noticeId, documentId])
+  @@map("notice_documents")
+}
+
+// ============================================
+// NOTICE-TASK LINKING
+// ============================================
+
+model NoticeTask {
+  id        String   @id @default(uuid())
+  noticeId  String
+  taskId    String
+  linkedBy  String
+  linkedAt  DateTime @default(now())
+
+  notice Notice         @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  task   ComplianceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  linker User            @relation("TaskLinker", fields: [linkedBy], references: [id])
+
+  @@unique([noticeId, taskId])
+  @@map("notice_tasks")
+}
+
+// ============================================
+// PRODUCT ANALYTICS MODELS
+// ============================================
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  workspaceId String?
+  
+  // Event details
+  eventType  String   // login, notice_created, dashboard_view, etc.
+  eventCategory String // navigation, action, conversion, error
+  severity   String?  // info, warning, error for error events
+  
+  // Context
+  page       String?  // current page/route
+  action     String?  // button clicked, form submitted, etc.
+  target     String?  // entity type affected
+  
+  // Metadata (flexible JSON for different event types)
+  metadata   Json?    // {entityId, entityType, duration, count, etc.}
+  
+  // Device/Location info (privacy-safe)
+  userAgent  String?
+  ipAddress  String?  // hashed or truncated for privacy
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  
+  @@index([tenantId, eventType])
+  @@index([tenantId, createdAt])
+  @@index([userId])
+}
+
+// ============================================
+// FEEDBACK SYSTEM MODELS
+// ============================================
+
+model Feedback {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  
+  // Feedback details
+  type       FeedbackType // issue, feature_request, general, praise
+  category   String?  // ui, performance, workflow, compliance, etc.
+  priority   FeedbackPriority @default(MEDIUM)
+  
+  // Content
+  subject    String
+  description String @db.Text
+  screenshots Json?   // array of screenshot URLs or base64 (small ones)
+  
+  // Status
+  status     FeedbackStatus @default(OPEN)
+  assignedTo String?  // userId of admin handling it
+  resolution String?  @db.Text
+  
+  // Metadata
+  pageOrigin String?  // which page the feedback came from
+  userAgent  String?
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  resolvedAt DateTime?
+  
+  @@index([tenantId, status])
+  @@index([tenantId, type])
+}
+
+// ============================================
+// ONBOARDING PROGRESS MODEL
+// ============================================
+
+model OnboardingProgress {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String   // primary user tracking progress
+  
+  // Checklist items (all false by default)
+  workspaceCreated Boolean @default(false)
+  firstClientAdded  Boolean @default(false)
+  firstDocumentUploaded Boolean @default(false)
+  firstTaskCreated  Boolean @default(false)
+  firstNoticeResolved Boolean @default(false)
+  
+  // Completion
+  completedAt DateTime?
+  completionPercentage Int @default(0) // 0, 20, 40, 60, 80, 100
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([tenantId, userId])
+}
+
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum FeedbackType {
+  issue          // Bug or problem
+  feature_request // Suggestion for new feature
+  general        // General feedback
+  praise         // Positive feedback
+}
+
+enum FeedbackPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum FeedbackStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
 }
