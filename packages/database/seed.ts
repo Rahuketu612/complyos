@@ -30,14 +30,22 @@ async function main() {
   console.log('Created tenant:', tenant.name);
 
   // Create test user
-  const passwordHash = await bcrypt.hash('password123', 10);
+  const demoEmail = 'demo@complyos.dev';
+  const demoPassword = 'DemoPassword123!';
+  const passwordHash = await bcrypt.hash(demoPassword, 10);
   const user = await prisma.user.upsert({
-    where: { tenantId_email: { tenantId: tenant.id, email: 'demo@complyos.com' } },
-    update: {},
+    where: { tenantId_email: { tenantId: tenant.id, email: demoEmail } },
+    update: {
+      passwordHash,
+      status: 'active',
+      emailVerified: true,
+      mfaEnabled: false,
+      mfaSecret: null,
+    },
     create: {
       id: 'user-ca-admin',
       tenantId: tenant.id,
-      email: 'demo@complyos.com',
+      email: demoEmail,
       passwordHash,
       firstName: 'Test',
       lastName: 'User',
@@ -535,7 +543,7 @@ async function main() {
   console.log('Created 2 evidence requests');
 
   console.log('\nDatabase seed completed successfully!');
-  console.log('Test credentials: test@complyos.com / password123');
+  console.log(`Demo credentials: ${demoEmail} / ${demoPassword}`);
 }
 
 main()

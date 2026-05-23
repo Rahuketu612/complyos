@@ -13,7 +13,6 @@ import {
   Building2, 
   Receipt, 
   AlertCircle,
-  AlertTriangle,
   Users, 
   Bot, 
   Settings,
@@ -22,23 +21,42 @@ import {
   Plus,
   Briefcase,
   ChevronDown,
-  MessageSquare
+  MessageSquare,
+  FileText,
+  CheckCircle2
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { getRoleBadgeColor, getRoleDisplayName } from "@/stores/workspace-store"
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/businesses", label: "Businesses", icon: Building2 },
-  { href: "/gst/returns", label: "GST Returns", icon: Receipt },
-  { href: "/gst/notices", label: "GST Notices", icon: AlertCircle },
-  { href: "/notices", label: "Notices", icon: AlertTriangle },
-  { href: "/communications", label: "Communications", icon: MessageSquare },
-  { href: "/workspaces", label: "Workspaces", icon: Briefcase },
-  { href: "/tasks", label: "Tasks", icon: AlertCircle },
-  { href: "/documents", label: "Documents", icon: Users },
-  { href: "/vendors", label: "Vendors", icon: Users },
-  { href: "/ai", label: "AI Assistant", icon: Bot },
-  { href: "/settings", label: "Settings", icon: Settings },
+// Navigation groups - cleaner organization
+const navGroups = [
+  {
+    label: "Main",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    ]
+  },
+  {
+    label: "Compliance",
+    items: [
+      { href: "/businesses", label: "Clients", icon: Building2 },
+      { href: "/gst/returns", label: "GST Returns", icon: Receipt },
+      { href: "/gst/notices", label: "GST Notices", icon: AlertCircle },
+      { href: "/notices", label: "Notices", icon: AlertCircle },
+      { href: "/tasks", label: "Tasks", icon: FileText },
+      { href: "/vendors", label: "Vendors", icon: Users },
+      { href: "/documents", label: "Documents", icon: Users },
+    ]
+  },
+  {
+    label: "Workspace",
+    items: [
+      { href: "/communications", label: "Messages", icon: MessageSquare },
+      { href: "/workspaces", label: "Workspaces", icon: Briefcase },
+      { href: "/ai", label: "AI Assistant", icon: Bot },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ]
+  },
 ]
 
 export function Sidebar() {
@@ -70,7 +88,6 @@ export function Sidebar() {
         role: 'user' as const,
         complianceScore: ws.complianceScore
       }))
-      // Only update if not already set
       if (!selectedWorkspace) {
         setSelectedWorkspace(wsContext[0])
       }
@@ -92,25 +109,26 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-64 min-h-screen border-r bg-card flex flex-col">
-      <div className="p-6">
-        <h1 className="text-xl font-bold">COMPLYOS</h1>
-        <p className="text-xs text-muted-foreground">Compliance Platform</p>
+    <aside className="w-56 min-h-screen border-r bg-card flex flex-col">
+      {/* Logo */}
+      <div className="px-4 py-5 border-b">
+        <h1 className="text-lg font-bold tracking-tight">COMPLYOS</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">Compliance Platform</p>
       </div>
       
       {/* Business Selector */}
-      <div className="px-3 mb-2">
-        <label className="text-xs text-muted-foreground mb-1 block">Active Business</label>
+      <div className="px-3 py-4 border-b">
+        <label className="text-xs text-muted-foreground mb-2 block uppercase tracking-wide">Client</label>
         {bizLoading ? (
-          <div className="flex items-center gap-2 text-sm py-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading...
+          <div className="flex items-center gap-2 text-sm py-2 text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Loading
           </div>
         ) : bizError ? (
-          <div className="text-sm py-2 text-red-500">Failed to load</div>
+          <div className="text-xs py-2 text-red-500">Failed to load</div>
         ) : businesses.length > 0 ? (
           <select 
-            className="w-full text-sm border rounded-lg px-2 py-2 bg-background"
+            className="w-full text-sm border rounded-md px-2 py-1.5 bg-background focus:ring-2 focus:ring-primary focus:outline-none transition-all"
             value={selectedBusinessId || ""}
             onChange={(e) => {
               const biz = businesses.find(b => b.id === e.target.value)
@@ -123,39 +141,44 @@ export function Sidebar() {
           </select>
         ) : (
           <div className="space-y-2">
-            <div className="text-sm py-2 text-muted-foreground">No businesses</div>
+            <div className="text-xs py-2 text-muted-foreground">No clients</div>
             <button 
               onClick={() => router.push("/businesses")}
-              className="flex items-center gap-2 text-sm text-primary hover:underline"
+              className="flex items-center gap-2 text-xs text-primary hover:underline"
             >
-              <Plus className="h-4 w-4" />
-              Create Business
+              <Plus className="h-3 w-3" />
+              Create Client
             </button>
           </div>
         )}
       </div>
 
-      {/* Workspace Selector */}
-      <div className="px-3 mb-4">
-        <label className="text-xs text-muted-foreground mb-1 block">Current Workspace</label>
+      {/* Workspace Selector - Prominent */}
+      <div className="px-3 py-4 border-b bg-muted/30">
+        <label className="text-xs text-muted-foreground mb-2 block uppercase tracking-wide">Workspace</label>
         {wsLoading ? (
-          <div className="flex items-center gap-2 text-sm py-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading...
+          <div className="flex items-center gap-2 text-xs py-2 text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Loading
           </div>
         ) : caWorkspaces && caWorkspaces.length > 0 ? (
           <div className="relative">
             <button
               onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
-              className="w-full text-sm border rounded-lg px-2 py-2 bg-background flex items-center justify-between"
+              className={cn(
+                "w-full text-sm border rounded-md px-2 py-1.5 flex items-center justify-between transition-colors focus:ring-2 focus:ring-primary focus:outline-none",
+                selectedWorkspace
+                  ? "bg-primary/5 border-primary/30"
+                  : "bg-background hover:bg-accent"
+              )}
             >
-              <span className="truncate">
+              <span className="truncate font-medium">
                 {selectedWorkspace?.name || 'Select workspace'}
               </span>
-              <ChevronDown className="h-4 w-4 flex-shrink-0" />
+              <ChevronDown className={cn("h-3 w-3 flex-shrink-0 transition-transform", showWorkspaceDropdown && "rotate-180")} />
             </button>
             {showWorkspaceDropdown && (
-              <div className="absolute z-50 w-full mt-1 bg-popover border rounded-lg shadow-lg max-h-60 overflow-auto">
+              <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-auto">
                 {caWorkspaces.map(ws => (
                   <button
                     key={ws.id}
@@ -167,11 +190,16 @@ export function Sidebar() {
                       complianceScore: ws.complianceScore
                     })}
                     className={cn(
-                      "w-full text-left px-3 py-2 text-sm hover:bg-accent",
-                      selectedWorkspace?.id === ws.id && "bg-accent"
+                      "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
+                      selectedWorkspace?.id === ws.id && "bg-primary/10 font-medium border-l-2 border-primary"
                     )}
                   >
-                    <div className="font-medium">{ws.name}</div>
+                    <div className="flex items-center justify-between">
+                      <span className="truncate">{ws.name}</span>
+                      {selectedWorkspace?.id === ws.id && (
+                        <CheckCircle2 className="h-3 w-3 text-primary flex-shrink-0" />
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">{ws.type}</div>
                   </button>
                 ))}
@@ -179,10 +207,16 @@ export function Sidebar() {
             )}
           </div>
         ) : (
-          <div className="text-sm py-2 text-muted-foreground">No workspaces</div>
+          <div className="p-3 rounded-md border border-dashed border-slate-300 text-center">
+            <p className="text-xs text-muted-foreground mb-2">No workspaces yet</p>
+            <Button variant="outline" size="sm" onClick={() => router.push('/workspaces')} className="gap-1 text-xs">
+              <Plus className="h-3 w-3" />
+              Create Workspace
+            </Button>
+          </div>
         )}
         
-        {/* Role Badge */}
+        {/* Role Badge - Subtle */}
         {selectedWorkspace && (
           <div className="mt-2">
             <span className={cn(
@@ -195,33 +229,44 @@ export function Sidebar() {
         )}
       </div>
       
-      <nav className="px-3 flex-1">
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-          
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          )
-        })}
+      {/* Navigation - Grouped */}
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <h3 className="text-xs text-muted-foreground uppercase tracking-wide mb-2 px-2">
+              {group.label}
+            </h3>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+                
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-all",
+                      isActive 
+                        ? "bg-primary/10 text-primary font-medium" 
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
-      <div className="px-3 py-4 border-t">
+      {/* Footer - Sign Out */}
+      <div className="px-3 py-3 border-t">
         <button 
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
         >
           <LogOut className="h-4 w-4" />
           Sign Out

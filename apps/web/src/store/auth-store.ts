@@ -25,7 +25,7 @@ interface AuthState {
   selectedWorkspaceName: string | null
   
   // Actions
-  login: (tokens: { accessToken: string; refreshToken?: string }, user: User) => void
+  login: (tokens: { accessToken: string; refreshToken?: string }, user: User) => Promise<void>
   logout: () => void
   
   setSelectedBusiness: (id: string, name: string) => void
@@ -51,10 +51,10 @@ export const useAuthStore = create<AuthState>()(
       selectedWorkspaceName: null,
       
       // Login action
-      login: (tokens, user) => {
+      login: async (tokens, user) => {
         // Sync session cookie for middleware
         if (typeof window !== 'undefined') {
-          fetch('/api/auth/session', {
+          await fetch('/api/auth/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accessToken: tokens.accessToken, isAuthenticated: true }),

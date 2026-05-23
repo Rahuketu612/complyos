@@ -13,7 +13,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "jest",
     "test:cov": "jest --coverage",
-    "seed:dev": "ts-node src/seed.ts",
+    "seed:dev": "npm --prefix ../../packages/database run seed",
     "prisma:migrate": "npx prisma migrate dev --name init",
     "prisma:generate": "prisma generate --schema ./prisma/schema.prisma",
     "postinstall": "prisma generate --schema ./prisma/schema.prisma"

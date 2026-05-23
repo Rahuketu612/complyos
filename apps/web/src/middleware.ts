@@ -16,6 +16,7 @@ const PUBLIC_ROUTES = [
   '/forgot-password',
   '/reset-password',
   '/api/health',
+  '/api/auth/session',
 ];
 
 // Auth callback URLs (after login redirect)
@@ -26,7 +27,8 @@ export function middleware(request: NextRequest) {
   const cookies = request.cookies;
   
   // Check if route is public
-  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+  const isPublicRoute =
+    pathname === '/' || PUBLIC_ROUTES.some(route => pathname.startsWith(route));
   
   // Get auth state from session cookie (set by login/logout actions)
   const sessionCookie = cookies.get('complyos-session');

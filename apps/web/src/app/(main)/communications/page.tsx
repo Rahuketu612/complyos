@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/store/auth-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { api } from "@/lib/api"
@@ -39,11 +40,11 @@ interface Stats {
   pendingEvidence: number
 }
 
-const statusConfig: Record<string, { label: string; bg: string; text: string; icon: any }> = {
-  OPEN: { label: "Open", bg: "bg-blue-100", text: "text-blue-800", icon: MessageSquare },
-  WAITING_CLIENT: { label: "Waiting Client", bg: "bg-orange-100", text: "text-orange-800", icon: Clock },
-  WAITING_INTERNAL: { label: "In Progress", bg: "bg-yellow-100", text: "text-yellow-800", icon: User },
-  RESOLVED: { label: "Resolved", bg: "bg-green-100", text: "text-green-800", icon: CheckCircle2 },
+const statusConfig: Record<string, { label: string; bg: string; text: string; nextAction: string }> = {
+  OPEN: { label: "Open", bg: "bg-blue-100", text: "text-blue-800", nextAction: "Reply" },
+  WAITING_CLIENT: { label: "Awaiting", bg: "bg-orange-100", text: "text-orange-800", nextAction: "Follow Up" },
+  WAITING_INTERNAL: { label: "In Progress", bg: "bg-yellow-100", text: "text-yellow-800", nextAction: "Review" },
+  RESOLVED: { label: "Resolved", bg: "bg-green-100", text: "text-green-800", nextAction: "Done" },
 }
 
 const typeConfig: Record<string, { label: string; icon: any; color: string }> = {
@@ -54,48 +55,68 @@ const typeConfig: Record<string, { label: string; icon: any; color: string }> = 
   APPROVAL: { label: "Approval", icon: FileText, color: "text-purple-600 bg-purple-50" },
 }
 
+// Stat Card
+function StatCard({ label, value, variant = "default" }: { label: string; value: number; variant?: "default" | "warning" | "success" }) {
+  const colors = { default: "text-foreground", warning: "text-orange-600", success: "text-green-600" }
+  return (
+    <button className="p-4 rounded-lg border bg-card text-left hover:bg-accent/50 transition-colors w-full focus:ring-2 focus:ring-primary focus:outline-none">
+      <div className={cn("text-2xl font-bold", colors[variant])}>{value}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
+    </button>
+  )
+}
+
 function ThreadCard({ thread, onClick }: { thread: Thread; onClick: () => void }) {
   const status = statusConfig[thread.status] || statusConfig.OPEN
   const type = typeConfig[thread.type] || typeConfig.GENERAL
   const TypeIcon = type.icon
-  const StatusIcon = status.icon
+  const isWaitingClient = thread.status === 'WAITING_CLIENT'
 
   return (
     <div
       onClick={onClick}
-      className="p-4 border rounded-lg bg-white hover:bg-gray-50 cursor-pointer transition-colors"
+      className="p-4 rounded-lg border bg-card hover:shadow-md cursor-pointer transition-all"
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className={cn("p-1 rounded", type.color)}>
               <TypeIcon className="h-4 w-4" />
             </span>
-            <span className="font-medium truncate">{thread.subject}</span>
+            <span className="font-semibold text-sm">{thread.subject}</span>
           </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span>{thread.workspace.name}</span>
             {thread.business && <span>• {thread.business.name}</span>}
           </div>
-          <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-            <span>By {thread.creator.firstName} {thread.creator.lastName}</span>
-            <span>•</span>
-            <span>{new Date(thread.updatedAt).toLocaleDateString()}</span>
-            <span>•</span>
-            <span>{thread._count.messages} messages</span>
-          </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span className={cn("px-2 py-1 rounded-lg text-xs font-medium", status.bg, status.text)}>
-            <StatusIcon className="h-3 w-3 inline mr-1" />
+          <span className={cn("px-2 py-0.5 rounded text-xs font-medium", status.bg, status.text)}>
             {status.label}
           </span>
           {thread.notice && (
             <span className="text-xs text-red-600 flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
-              Linked Notice
+              Linked
             </span>
           )}
+        </div>
+      </div>
+      
+      {/* Meta row */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>By {thread.creator.firstName}</span>
+          <span>•</span>
+          <span>{new Date(thread.updatedAt).toLocaleDateString()}</span>
+          <span>•</span>
+          <span className={cn(isWaitingClient && "text-orange-600 font-medium")}>
+            {thread._count.messages} messages
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-primary">
+          <span className="font-medium">{status.nextAction}</span>
+          <ArrowRight className="h-3 w-3" />
         </div>
       </div>
     </div>
@@ -168,116 +189,52 @@ export default function CommunicationsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Client Communications</h1>
-          <p className="text-muted-foreground">Manage client interactions and requests</p>
+          <h1 className="text-2xl font-bold">Messages</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage client communications</p>
         </div>
-        <Button onClick={handleCreateThread}>
-          <Plus className="h-4 w-4 mr-2" />
+        <Button onClick={handleCreateThread} className="gap-2">
+          <Plus className="h-4 w-4" />
           New Thread
         </Button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Quick Filters */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <Inbox className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{stats.total}</div>
-                <div className="text-xs text-muted-foreground">Total</div>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <MessageSquare className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{stats.open}</div>
-                <div className="text-xs text-muted-foreground">Open</div>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-orange-100">
-                <Clock className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{stats.waitingClient}</div>
-                <div className="text-xs text-muted-foreground">Waiting Client</div>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-yellow-100">
-                <User className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{stats.waitingInternal}</div>
-                <div className="text-xs text-muted-foreground">In Progress</div>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-100">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{stats.resolved}</div>
-                <div className="text-xs text-muted-foreground">Resolved</div>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-100">
-                <FileQuestion className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{stats.pendingEvidence}</div>
-                <div className="text-xs text-muted-foreground">Pending Docs</div>
-              </div>
-            </div>
-          </Card>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard label="Total" value={stats.total} />
+          <StatCard label="Open" value={stats.open} />
+          <StatCard label="Awaiting Client" value={stats.waitingClient} variant={stats.waitingClient > 0 ? "warning" : "default"} />
+          <StatCard label="Resolved" value={stats.resolved} variant="success" />
         </div>
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
+          <Input
             placeholder="Search threads..."
             value={filter.search}
             onChange={(e) => setFilter(f => ({ ...f, search: e.target.value }))}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg bg-background"
           />
         </div>
         <select
           value={filter.status || ''}
           onChange={(e) => setFilter(f => ({ ...f, status: e.target.value || undefined }))}
-          className="border rounded-lg px-3 py-2 bg-background"
+          className="border rounded-md px-3 py-2 bg-background focus:ring-2 focus:ring-primary focus:outline-none"
         >
           <option value="">All Status</option>
           <option value="OPEN">Open</option>
-          <option value="WAITING_CLIENT">Waiting Client</option>
+          <option value="WAITING_CLIENT">Awaiting Client</option>
           <option value="WAITING_INTERNAL">In Progress</option>
           <option value="RESOLVED">Resolved</option>
         </select>
         <select
           value={filter.type || ''}
           onChange={(e) => setFilter(f => ({ ...f, type: e.target.value || undefined }))}
-          className="border rounded-lg px-3 py-2 bg-background"
+          className="border rounded-md px-3 py-2 bg-background focus:ring-2 focus:ring-primary focus:outline-none"
         >
           <option value="">All Types</option>
           <option value="NOTICE">Notice</option>
@@ -289,33 +246,35 @@ export default function CommunicationsPage() {
       </div>
 
       {/* Thread List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : threads.length === 0 ? (
-        <div className="text-center py-12 border rounded-lg bg-gray-50">
-          <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-          <h3 className="font-medium text-gray-900">No communications yet</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create a thread from a notice or start a new conversation
-          </p>
-          <Button variant="outline" className="mt-4" onClick={handleCreateThread}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Thread
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {threads.map(thread => (
-            <ThreadCard
-              key={thread.id}
-              thread={thread}
-              onClick={() => handleThreadClick(thread.id)}
-            />
-          ))}
-        </div>
-      )}
+      <div className="space-y-3">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : threads.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-3" />
+              <h3 className="font-medium mb-1">No messages</h3>
+              <p className="text-sm text-muted-foreground mb-4">Create a thread to start communicating</p>
+              <Button variant="outline" onClick={handleCreateThread} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create Thread
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {threads.map(thread => (
+              <ThreadCard
+                key={thread.id}
+                thread={thread}
+                onClick={() => handleThreadClick(thread.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
