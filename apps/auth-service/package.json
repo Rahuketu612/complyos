@@ -15,8 +15,8 @@
     "test:cov": "jest --coverage",
     "seed:dev": "ts-node src/seed.ts",
     "prisma:migrate": "npx prisma migrate dev --name init",
-    "prisma:generate": "prisma generate --schema ../../packages/database/schema.prisma",
-    "postinstall": "prisma generate --schema ../../packages/database/schema.prisma"
+    "prisma:generate": "prisma generate --schema ./prisma/schema.prisma",
+    "postinstall": "prisma generate --schema ./prisma/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

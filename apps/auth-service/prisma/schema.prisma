@@ -136,6 +136,10 @@ model Session {
   tokenExpiry  DateTime
   refreshTokenExpiry DateTime?
   
+  // Token Family (for rotation tracking)
+  tokenFamily String? // Groups rotated tokens together
+  rotationCount Int    @default(0)
+  
   // Device Info
   deviceId     String?
   deviceName  String?
@@ -150,6 +154,8 @@ model Session {
   
   user        User    @relation(fields: [userId], references: [id])
   
+  @@index([userId, isRevoked])
+  @@index([tokenFamily, isRevoked])
   @@map("sessions")
 }
 
@@ -883,6 +889,19 @@ model Notification {
 // AUDIT & LOGGING
 // ============================================
 
+enum AuditEventCategory {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  TOKEN_REFRESH
+  GST_ACTION
+  VENDOR_ACTION
+  DATA_EXPORT
+  ADMIN_ACTION
+  SECURITY_INCIDENT
+  DATA_ACCESS
+}
+
 model AuditLog {
   id              String   @id @default(uuid())
   tenantId        String
@@ -893,9 +912,15 @@ model AuditLog {
   entityType     String   // User, Business, Notice, etc.
   entityId       String?
   
+  // CERT-In: Event category for security classification
+  eventCategory   AuditEventCategory?
+  
   // Changes
   oldValues      Json?
   newValues     Json?
+  
+  // CERT-In: Correlation ID for request tracing
+  correlationId String?
   
   // Request Info
   ipAddress      String?
@@ -907,6 +932,10 @@ model AuditLog {
   success        Boolean  @default(true)
   errorMessage  String?
   
+  // CERT-In: Immutable hash chain for tamper detection
+  previousHash String? // Hash of previous audit log entry
+  checksum     String?  // SHA-256 of (timestamp + action + entityType + entityId + userId + correlationId + success)
+  
   timestamp     DateTime @default(now())
   
   tenant         Tenant   @relation(fields: [tenantId], references: [id])
@@ -914,6 +943,7 @@ model AuditLog {
   
   @@index([tenantId, timestamp])
   @@index([userId, timestamp])
+  @@index([eventCategory, timestamp])
   @@map("audit_logs")
 }
 

@@ -36,7 +36,7 @@ export class BusinessService {
         cin: dto.cin,
         llpin: dto.llpin,
         gstin: dto.gstin,
-        entityType: dto.entityType,
+        entityType: dto.entityType as any,
         dateOfIncorporation: dto.dateOfIncorporation,
         commencementDate: dto.commencementDate,
         industry: dto.industry,
@@ -321,11 +321,11 @@ export class BusinessService {
       })),
       recentNotices: recentNotices.map((n) => ({
         id: n.id,
-        title: n.title,
+        title: n.subject,
         type: n.noticeType,
         severity: n.severity,
         status: n.status,
-        dueDate: n.dueDate,
+        dueDate: n.responseDueDate,
       })),
       vendors: {
         total: vendorStats._count,
