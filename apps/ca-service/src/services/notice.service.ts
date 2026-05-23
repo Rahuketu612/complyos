@@ -50,10 +50,10 @@ export class NoticeService {
         severity: (dto.severity as any) || 'MEDIUM',
         status: (dto.status as any) || 'RECEIVED',
         responseDueDate: dto.responseDueDate,
-        demandAmount: dto.demandAmount ? new Prisma.Decimal(dto.demandAmount) : undefined,
-        penaltyAmount: dto.penaltyAmount ? new Prisma.Decimal(dto.penaltyAmount) : undefined,
-        interestAmount: dto.interestAmount ? new Prisma.Decimal(dto.interestAmount) : undefined,
-        totalLiability: totalLiability ? new Prisma.Decimal(totalLiability) : undefined,
+        demandAmount: dto.demandAmount ? (dto.demandAmount) : undefined,
+        penaltyAmount: dto.penaltyAmount ? (dto.penaltyAmount) : undefined,
+        interestAmount: dto.interestAmount ? (dto.interestAmount) : undefined,
+        totalLiability: totalLiability ? (totalLiability) : undefined,
         subject: dto.subject,
         summary: dto.summary,
         groundsOfNotice: dto.groundsOfNotice,
@@ -363,7 +363,7 @@ export class NoticeService {
     const demandAmount = dto.demandAmount ?? (Number(notice.demandAmount) || 0);
     const penaltyAmount = dto.penaltyAmount ?? (Number(notice.penaltyAmount) || 0);
     const interestAmount = dto.interestAmount ?? (Number(notice.interestAmount) || 0);
-    updateData.totalLiability = new Prisma.Decimal(demandAmount + penaltyAmount + interestAmount);
+    updateData.totalLiability = (demandAmount + penaltyAmount + interestAmount);
 
     const updated = await this.prisma.notice.update({
       where: { id: noticeId },

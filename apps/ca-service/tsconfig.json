@@ -21,7 +21,8 @@
     "resolveJsonModule": true,
     "paths": {
       "@/*": ["src/*"],
-      "@complyos/database": ["../../packages/database/src"]
+      "@complyos/database": ["../../packages/database/src"],
+      "@complyos/shared": ["../../packages/shared/src"]
     }
   },
   "include": ["src/**/*"],
