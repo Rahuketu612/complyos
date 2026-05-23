@@ -56,79 +56,71 @@ const defaultFilters: DocumentFilters = {
   search: "",
 }
 
-// ============ Document Row ============
+// ============ Stat Card ============
+function StatCard({ label, value, variant = "default" }: { label: string; value: number; variant?: "default" | "warning" }) {
+  const colors = { default: "text-foreground", warning: "text-orange-600" }
+  return (
+    <button className="p-4 rounded-lg border bg-card text-left hover:bg-accent/50 transition-colors w-full focus:ring-2 focus:ring-primary focus:outline-none">
+      <div className={cn("text-2xl font-bold", colors[variant])}>{value}</div>
+      <div className="text-sm text-muted-foreground">{label}</div>
+    </button>
+  )
+}
 
-function DocumentRow({ document }: { document: DocumentVault }) {
+// ============ Document Card ============
+function DocumentCard({ document }: { document: DocumentVault }) {
   const config = categoryConfig[document.category] || categoryConfig["OTHER"]
   const CategoryIcon = config.icon
   const isExpiringSoon = document.retentionDate && 
     new Date(document.retentionDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
   return (
-    <tr className="border-b hover:bg-muted/50">
-      <td className="p-3">
+    <div className={cn(
+      "p-4 rounded-lg border bg-card hover:shadow-md transition-all",
+      isExpiringSoon && "border-orange-200"
+    )}>
+      <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className={cn("p-2 rounded-lg", config.bg)}>
-            <CategoryIcon className={cn("h-4 w-4", config.text)} />
+            <CategoryIcon className={cn("h-5 w-5", config.text)} />
           </div>
           <div>
-            <span className="font-medium text-sm">{document.name}</span>
-            {document.tags && document.tags.length > 0 && (
-              <div className="flex items-center gap-1 mt-1">
-                {document.tags.slice(0, 3).map((tag, i) => (
-                  <span key={i} className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
+            <span className="font-semibold text-sm">{document.name}</span>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={cn("px-2 py-0.5 rounded text-xs font-medium", config.bg, config.text)}>
+                {document.category}
+              </span>
+              <span className={cn(
+                "px-2 py-0.5 rounded text-xs",
+                document.status === 'ACTIVE' ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+              )}>
+                {document.status || 'ACTIVE'}
+              </span>
+            </div>
           </div>
         </div>
-      </td>
-      <td className="p-3">
-        <span className={cn("px-2 py-1 rounded text-xs font-medium", config.bg, config.text)}>
-          {document.category}
-        </span>
-      </td>
-      <td className="p-3">
+      </div>
+      
+      {document.tags && document.tags.length > 0 && (
+        <div className="flex items-center gap-1 mt-3 pt-3 border-t">
+          {document.tags.slice(0, 3).map((tag, i) => (
+            <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded">{tag}</span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mt-3 pt-3 border-t text-xs text-muted-foreground">
         {document.retentionDate && (
-          <div className={cn(
-            "flex items-center gap-1 text-sm",
-            isExpiringSoon ? "text-orange-600" : "text-muted-foreground"
-          )}>
+          <div className={cn("flex items-center gap-1", isExpiringSoon && "text-orange-600 font-medium")}>
             <Calendar className="h-3 w-3" />
-            <span>
-              {new Date(document.retentionDate).toLocaleDateString()}
-              {isExpiringSoon && (
-                <span className="ml-2 text-xs font-medium">(Expiring soon)</span>
-              )}
-            </span>
+            {isExpiringSoon ? "Expiring soon" : new Date(document.retentionDate).toLocaleDateString()}
           </div>
         )}
-      </td>
-      <td className="p-3">
-        <span className={cn(
-          "px-2 py-1 rounded text-xs font-medium",
-          document.status === 'ACTIVE' ? "bg-green-100 text-green-800" :
-          document.status === 'ARCHIVED' ? "bg-gray-100 text-gray-800" :
-          "bg-yellow-100 text-yellow-800"
-        )}>
-          {document.status || 'ACTIVE'}
-        </span>
-      </td>
-      <td className="p-3">
-        {document.uploadedBy && (
-          <span className="text-sm text-muted-foreground">{document.uploadedBy}</span>
-        )}
-      </td>
-      <td className="p-3">
         {document.uploadedAt && (
-          <span className="text-sm text-muted-foreground">
-            {new Date(document.uploadedAt).toLocaleDateString()}
-          </span>
+          <span>{new Date(document.uploadedAt).toLocaleDateString()}</span>
         )}
-      </td>
-    </tr>
+      </div>
+    </div>
   )
 }
 
@@ -177,172 +169,95 @@ export default function DocumentsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Documents</h1>
-          <p className="text-muted-foreground">
-            {selectedWorkspace ? `Workspace: ${selectedWorkspace.name}` : "Document vault management"}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Manage your document vault</p>
         </div>
-        <Button disabled>
-          <Upload className="h-4 w-4 mr-2" />
-          Upload Document
+        <Button disabled className="gap-2">
+          <Upload className="h-4 w-4" />
+          Upload
         </Button>
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold">{documents.length}</div>
-              <div className="text-sm text-muted-foreground">Total Documents</div>
-            </div>
-            <FolderOpen className="h-8 w-8 text-blue-500" />
-          </div>
-        </Card>
-        <Card className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold">{expiringCount}</div>
-              <div className="text-sm text-muted-foreground">Expiring Soon</div>
-            </div>
-            <AlertTriangle className="h-8 w-8 text-orange-500" />
-          </div>
-        </Card>
-        <Card className="p-4 bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold">
-                {Object.values(byCategory).reduce((a, b) => a + b, 0)}
-              </div>
-              <div className="text-sm text-muted-foreground">By Category</div>
-            </div>
-            <Tag className="h-8 w-8 text-green-500" />
-          </div>
-        </Card>
-        <Card className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold">{selectedWorkspace?.name || 'None'}</div>
-              <div className="text-sm text-muted-foreground">Current Workspace</div>
-            </div>
-            <FileText className="h-8 w-8 text-purple-500" />
-          </div>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard label="Total Documents" value={documents.length} />
+        <StatCard label="Expiring Soon" value={expiringCount} variant={expiringCount > 0 ? "warning" : "default"} />
+        <StatCard label="Categories" value={Object.keys(byCategory).length} />
+        <StatCard label="Active" value={documents.filter(d => d.status === 'ACTIVE').length} />
       </div>
 
-      {/* Category Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Documents by Category</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(byCategory).map(([cat, count]) => {
-              const config = categoryConfig[cat] || categoryConfig["OTHER"]
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setFilters({ ...filters, category: cat })}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors",
-                    filters.category === cat 
-                      ? "border-primary bg-primary/10" 
-                      : "border-border hover:bg-accent"
-                  )}
-                >
-                  <span className={cn("px-2 py-0.5 rounded text-xs font-medium", config.bg, config.text)}>
-                    {cat}
-                  </span>
-                  <span className="text-sm font-medium">{count}</span>
-                </button>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search documents..."
-                className="pl-10"
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              />
-            </div>
-            <select
-              className="border rounded-lg px-3 py-2 bg-background"
-              value={filters.category}
-              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-            >
-              {categories.map(cat => (
-                <option key={cat.value} value={cat.value}>{cat.label}</option>
-              ))}
-            </select>
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4 mr-1" />
-                Clear
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Documents Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            {hasActiveFilters ? `Filtered Documents (${filteredDocuments.length})` : `All Documents (${filteredDocuments.length})`}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredDocuments.length === 0 ? (
-            <div className="text-center py-12">
-              <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-medium mb-2">
-                {hasActiveFilters ? "No documents match your filters" : "No documents yet"}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                {hasActiveFilters ? "Try adjusting your filters" : "Upload your first document to get started"}
-              </p>
-              {hasActiveFilters && (
-                <Button variant="outline" onClick={clearFilters}>Clear Filters</Button>
+      {/* Category Filter Buttons */}
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(byCategory).map(([cat, count]) => {
+          const config = categoryConfig[cat] || categoryConfig["OTHER"]
+          return (
+            <button
+              key={cat}
+              onClick={() => setFilters(prev => ({ ...prev, category: filters.category === cat ? "" : cat }))}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors",
+                filters.category === cat 
+                  ? "border-primary bg-primary/10" 
+                  : "border-border hover:bg-accent"
               )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left p-3 font-medium">Document</th>
-                    <th className="text-left p-3 font-medium">Category</th>
-                    <th className="text-left p-3 font-medium">Retention Date</th>
-                    <th className="text-left p-3 font-medium">Status</th>
-                    <th className="text-left p-3 font-medium">Uploaded By</th>
-                    <th className="text-left p-3 font-medium">Uploaded At</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDocuments.map(doc => (
-                    <DocumentRow key={doc.id} document={doc} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            >
+              <span className={cn("px-2 py-0.5 rounded text-xs font-medium", config.bg, config.text)}>
+                {cat}
+              </span>
+              <span className="text-sm font-medium">{count}</span>
+            </button>
+          )
+        })}
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+            <X className="h-3 w-3" /> Clear
+          </Button>
+        )}
+      </div>
+
+      {/* Search */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search documents..."
+            className="pl-10"
+            value={filters.search}
+            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      {/* Document Grid */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">
+          {filters.category ? `${filters.category} (${filteredDocuments.length})` : `All Documents (${filteredDocuments.length})`}
+        </h2>
+        
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <FolderOpen className="h-10 w-10 text-green-500 mx-auto mb-3" />
+              <h3 className="font-medium mb-1">No documents</h3>
+              <p className="text-sm text-muted-foreground">
+                {filters.category || filters.search ? "Try adjusting your filters" : "Documents will appear here"}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredDocuments.map(doc => (
+              <DocumentCard key={doc.id} document={doc} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

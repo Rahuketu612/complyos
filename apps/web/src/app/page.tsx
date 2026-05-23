@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuthStore } from "@/store/auth-store"
 import { api } from "@/lib/api"
-import { Loader2, AlertCircle } from "lucide-react"
+import { Loader2, AlertCircle, Shield, Users, FileCheck } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface LoginResponse {
   user: { id: string; email: string; firstName: string; lastName?: string; tenantId: string }
@@ -107,8 +108,8 @@ export default function LoginPage() {
           
           <div>
             <CardTitle className="text-2xl font-bold text-slate-900">Welcome to COMPLYOS</CardTitle>
-            <CardDescription className="mt-2">
-              Sign in to access your compliance dashboard
+            <CardDescription className="mt-2 text-sm">
+              Compliance management built for CA firms
             </CardDescription>
           </div>
         </CardHeader>
@@ -116,14 +117,14 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-100">
+              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700">Email address</Label>
+              <Label htmlFor="email" className="text-slate-700 font-medium">Email</Label>
               <Input 
                 id="email" 
                 type="email" 
@@ -133,26 +134,29 @@ export default function LoginPage() {
                 className="h-11"
                 required 
                 disabled={loading}
+                autoComplete="email"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-700">Password</Label>
+              <Label htmlFor="password" className="text-slate-700 font-medium">Password</Label>
               <div className="relative">
                 <Input 
                   id="password" 
                   type={showPassword ? "text" : "password"} 
-                  placeholder="••••••••" 
+                  placeholder="Enter password" 
                   value={password} 
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 pr-10"
+                  className="h-11 pr-16"
                   required 
                   disabled={loading}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+                  disabled={loading}
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
@@ -192,15 +196,34 @@ export default function LoginPage() {
               onClick={handleDemoLogin}
               disabled={loading}
             >
-              Try Demo Account
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Loading demo...
+                </>
+              ) : (
+                "Try Demo Account"
+              )}
             </Button>
           </CardFooter>
         </form>
         
-        <div className="px-6 pb-4 text-center">
-          <p className="text-xs text-slate-500">
-            Demo credentials: demo@complyos.com / Demo@123
-          </p>
+        {/* Trust indicators */}
+        <div className="px-6 pb-4">
+          <div className="flex items-center justify-center gap-6 text-xs text-slate-500">
+            <div className="flex items-center gap-1">
+              <Shield className="h-3 w-3" />
+              <span>Secure</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              <span>Multi-tenant</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <FileCheck className="h-3 w-3" />
+              <span>Audit Ready</span>
+            </div>
+          </div>
         </div>
       </Card>
       
