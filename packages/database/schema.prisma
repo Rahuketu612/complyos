@@ -1821,3 +1821,129 @@ model NoticeTask {
   @@unique([noticeId, taskId])
   @@map("notice_tasks")
 }
+
+// ============================================
+// PRODUCT ANALYTICS MODELS
+// ============================================
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  workspaceId String?
+  
+  // Event details
+  eventType  String   // login, notice_created, dashboard_view, etc.
+  eventCategory String // navigation, action, conversion, error
+  severity   String?  // info, warning, error for error events
+  
+  // Context
+  page       String?  // current page/route
+  action     String?  // button clicked, form submitted, etc.
+  target     String?  // entity type affected
+  
+  // Metadata (flexible JSON for different event types)
+  metadata   Json?    // {entityId, entityType, duration, count, etc.}
+  
+  // Device/Location info (privacy-safe)
+  userAgent  String?
+  ipAddress  String?  // hashed or truncated for privacy
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  
+  @@index([tenantId, eventType])
+  @@index([tenantId, createdAt])
+  @@index([userId])
+}
+
+// ============================================
+// FEEDBACK SYSTEM MODELS
+// ============================================
+
+model Feedback {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  
+  // Feedback details
+  type       FeedbackType // issue, feature_request, general, praise
+  category   String?  // ui, performance, workflow, compliance, etc.
+  priority   FeedbackPriority @default(MEDIUM)
+  
+  // Content
+  subject    String
+  description String @db.Text
+  screenshots Json?   // array of screenshot URLs or base64 (small ones)
+  
+  // Status
+  status     FeedbackStatus @default(OPEN)
+  assignedTo String?  // userId of admin handling it
+  resolution String?  @db.Text
+  
+  // Metadata
+  pageOrigin String?  // which page the feedback came from
+  userAgent  String?
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  resolvedAt DateTime?
+  
+  @@index([tenantId, status])
+  @@index([tenantId, type])
+}
+
+// ============================================
+// ONBOARDING PROGRESS MODEL
+// ============================================
+
+model OnboardingProgress {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String   // primary user tracking progress
+  
+  // Checklist items (all false by default)
+  workspaceCreated Boolean @default(false)
+  firstClientAdded  Boolean @default(false)
+  firstDocumentUploaded Boolean @default(false)
+  firstTaskCreated  Boolean @default(false)
+  firstNoticeResolved Boolean @default(false)
+  
+  // Completion
+  completedAt DateTime?
+  completionPercentage Int @default(0) // 0, 20, 40, 60, 80, 100
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([tenantId, userId])
+}
+
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum FeedbackType {
+  issue          // Bug or problem
+  feature_request // Suggestion for new feature
+  general        // General feedback
+  praise         // Positive feedback
+}
+
+enum FeedbackPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum FeedbackStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
+}

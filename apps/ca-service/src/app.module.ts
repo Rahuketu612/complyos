@@ -31,6 +31,14 @@ import { QueueModule } from './workers/queue.module';
 import { MetricsService } from './observability/metrics.service';
 import { MetricsController } from './observability/metrics.controller';
 
+// NEW: Pilot & Analytics Services
+import { AnalyticsService } from './services/analytics.service';
+import { FeedbackService } from './services/feedback.service';
+import { OnboardingService } from './services/onboarding.service';
+import { PilotMetricsService } from './services/pilot-metrics.service';
+import { ErrorTrackingService } from './services/error-tracking.service';
+import { UsageLimitsService } from './services/usage-limits.service';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -65,6 +73,13 @@ import { MetricsController } from './observability/metrics.controller';
     QueueService,
     SchedulerService,
     MetricsService,
+    // NEW: Pilot & Analytics
+    AnalyticsService,
+    FeedbackService,
+    OnboardingService,
+    PilotMetricsService,
+    ErrorTrackingService,
+    UsageLimitsService,
     JwtStrategy,
     JwtAuthGuard,
     RbacGuard,
@@ -74,6 +89,13 @@ import { MetricsController } from './observability/metrics.controller';
     AuditService,
     QueueService,
     MetricsService,
+    // NEW: Pilot & Analytics
+    AnalyticsService,
+    FeedbackService,
+    OnboardingService,
+    PilotMetricsService,
+    ErrorTrackingService,
+    UsageLimitsService,
   ],
 })
 export class AppModule {}
