@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaService } from './prisma/prisma.service';
 import { WorkspaceService } from './services/workspace.service';
 import { TaskService } from './services/task.service';
@@ -21,15 +22,22 @@ import { CommunicationController } from './controllers/communication.controller'
 import { DashboardController } from './controllers/dashboard.controller';
 import { HealthController } from './controllers/health.controller';
 import { AuditService } from './services/audit.service';
+import { QueueService } from './services/queue.service';
+import { SchedulerService } from './services/scheduler.service';
 import { JwtStrategy } from './auth/strategies/jwt.strategy';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RbacGuard } from './auth/guards/rbac';
+import { QueueModule } from './workers/queue.module';
+import { MetricsService } from './observability/metrics.service';
+import { MetricsController } from './observability/metrics.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ScheduleModule.forRoot(),
+    QueueModule,
   ],
   controllers: [
     HealthController,
@@ -41,6 +49,7 @@ import { RbacGuard } from './auth/guards/rbac';
     AIController,
     CommunicationController,
     DashboardController,
+    MetricsController,
   ],
   providers: [
     PrismaService,
@@ -53,21 +62,18 @@ import { RbacGuard } from './auth/guards/rbac';
     AIComplianceService,
     CommunicationService,
     AuditService,
+    QueueService,
+    SchedulerService,
+    MetricsService,
     JwtStrategy,
     JwtAuthGuard,
     RbacGuard,
   ],
   exports: [
-    WorkspaceService,
-    TaskService,
-    DocumentVaultService,
-    NotificationService,
-    NoticeService,
-    AIProviderService,
-    AIComplianceService,
-    CommunicationService,
-    JwtAuthGuard,
-    RbacGuard,
+    PrismaService,
+    AuditService,
+    QueueService,
+    MetricsService,
   ],
 })
-export class CaServiceModule {}
+export class AppModule {}

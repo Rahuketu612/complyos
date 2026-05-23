@@ -60,7 +60,7 @@ async function bootstrap() {
     .setTitle('COMPLYOS API Gateway')
     .setDescription('API Gateway for COMPLYOS microservices')
     .setVersion('1.0')
-    .addApiKeyAuth()
+    .addApiKey()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);

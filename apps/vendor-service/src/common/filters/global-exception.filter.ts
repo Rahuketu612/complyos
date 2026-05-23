@@ -35,10 +35,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let error = 'Internal Server Error';
     let details: any = undefined;
 
-    const correlationId =
-      request.headers['x-correlation-id'] ||
-      request.headers['x-request-id'] ||
-      'unknown';
+    const getHeaderValue = (name: string): string => {
+      const value = request.headers[name];
+      return Array.isArray(value) ? value[0] : (value || 'unknown');
+    };
+
+    const correlationId = getHeaderValue('x-correlation-id') || getHeaderValue('x-request-id') || 'unknown';
 
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
@@ -55,8 +57,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      
-      // Don't expose internal errors in production
+
       if (process.env.NODE_ENV === 'production') {
         message = 'An unexpected error occurred';
       }
@@ -75,7 +76,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       errorResponse.details = details;
     }
 
-    // Log error
     if (statusCode >= 500) {
       this.logger.error(
         `[${correlationId}] ${statusCode} ${error}: ${message}`,

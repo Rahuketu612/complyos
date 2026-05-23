@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateVendorDto, UpdateVendorDto, VendorFilterDto } from '../dto/create-vendor.dto';
 import { calculateVendorRisk, calculateRiskLevel } from '../utils/risk-calculation';
 import { getMsmePaymentSummary } from '../msme/payment-aging';
@@ -48,7 +49,7 @@ export class VendorService {
         address: dto.address,
         state: dto.state,
         pincode: dto.pincode,
-        entityType: dto.entityType,
+        entityType: dto.entityType as Prisma.VendorCreateInput['entityType'],
         // MSME fields
         msmeRegistered: dto.msmeRegistered ?? false,
         udyamNumber: dto.udyamNumber,
@@ -126,7 +127,7 @@ export class VendorService {
             paymentDueDays: vendor.paymentDueDays || 30,
           }));
 
-          enriched.msmePaymentSummary = getMsmePaymentSummary(invoiceData);
+          (enriched as any).msmePaymentSummary = getMsmePaymentSummary(invoiceData);
         }
         
         return enriched;
@@ -178,7 +179,7 @@ export class VendorService {
         paymentDueDays: vendor.paymentDueDays || 30,
       }));
 
-      enriched.msmePaymentSummary = getMsmePaymentSummary(invoiceData);
+      (enriched as any).msmePaymentSummary = getMsmePaymentSummary(invoiceData);
     }
 
     return enriched;
@@ -485,7 +486,7 @@ export class VendorService {
         _count: true,
       }),
       this.prisma.notice.count({
-        where: { businessId, status: 'open' },
+        where: { businessId, status: 'RECEIVED' as const },
       }),
       // Get upcoming GSTR-1/3B due within 7 days
       this.prisma.gstReturn.findMany({
@@ -559,7 +560,7 @@ export class VendorService {
 
     const totalInvoices = invoices.length;
     const matched = invoices.filter(i => i.matchStatus === 'matched').length;
-    const missing = invoices.filter(i => i.matchStatus === 'missing').length;
+    const missingCount = invoices.filter(i => i.matchStatus === 'missing').length;
     const unmatched = invoices.filter(i => i.matchStatus === 'mismatch').length;
 
     const itcClaimed = invoices.reduce(
@@ -571,15 +572,15 @@ export class VendorService {
     const riskScore = calculateVendorRisk({
       totalInvoices,
       matched,
-      missing,
+      missing: missingCount,
       lastGstr1Filed: undefined, // Would come from vendor sync
     });
 
     // Calculate risk level
-    const riskLevel = calculateRiskLevel(itcClaimed, missing, riskScore);
+    const riskLevel = calculateRiskLevel(itcClaimed, missingCount, riskScore);
 
     // Calculate ITC at risk
-    const itcAtRisk = missing.reduce(
+    const itcAtRisk = invoices.filter(i => i.matchStatus === 'missing').reduce(
       (sum, i) => sum + Number(i.taxableValue || 0) * 0.18, // Assumed 18% average
       0
     );
@@ -589,7 +590,7 @@ export class VendorService {
       data: {
         totalInvoices,
         matchedInvoices: matched,
-        missingInvoices: missing,
+        missingInvoices: missingCount,
         itcClaimed,
         itcAtRisk,
         complianceScore: riskScore,
