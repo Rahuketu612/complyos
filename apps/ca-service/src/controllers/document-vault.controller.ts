@@ -1,58 +1,49 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RbacGuard, RequireRoles } from '../auth/guards/rbac';
+import { GlobalRole } from '@complyos/shared';
 import { DocumentVaultService } from '../services/document-vault.service';
-import { CreateDocumentDto, UpdateDocumentDto, DocumentQueryDto } from '../dto/document.dto';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
 @Controller('documents')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
 export class DocumentVaultController {
-  constructor(private documentService: DocumentVaultService) {}
-
-  @Post()
-  @ApiOperation({ summary: 'Upload document metadata' })
-  async createDocument(
-    @Request() req: any,
-    @Body() dto: CreateDocumentDto,
-  ) {
-    // Simplified - workspace from business or first available
-    if (!dto.businessId) {
-      throw new Error('businessId is required');
-    }
-    return this.documentService.createDocument(req.user.tenantId, req.user.id, dto.businessId, dto);
-  }
+  constructor(private documentVaultService: DocumentVaultService) {}
 
   @Get('workspace/:workspaceId')
-  @ApiOperation({ summary: 'List documents in workspace' })
+  @RequireRoles(GlobalRole.CA_ADMIN, GlobalRole.CA_STAFF, GlobalRole.COMPLIANCE_MANAGER, GlobalRole.VIEWER)
+  @ApiOperation({ summary: 'List documents for workspace' })
   async listDocuments(
     @Request() req: any,
     @Param('workspaceId') workspaceId: string,
-    @Query() query: DocumentQueryDto,
+    @Query('category') category?: string,
   ) {
-    return this.documentService.listDocuments(req.user.tenantId, req.user.id, workspaceId, query);
+    return this.documentVaultService.listDocuments(req.user.tenantId, workspaceId, category);
   }
 
   @Get(':documentId')
-  @ApiOperation({ summary: 'Get document details' })
+  @RequireRoles(GlobalRole.CA_ADMIN, GlobalRole.CA_STAFF, GlobalRole.COMPLIANCE_MANAGER, GlobalRole.VIEWER)
+  @ApiOperation({ summary: 'Get document metadata' })
   async getDocument(@Request() req: any, @Param('documentId') documentId: string) {
-    return this.documentService.getDocument(req.user.tenantId, req.user.id, documentId);
+    return this.documentVaultService.getDocument(req.user.tenantId, req.user.id, documentId);
   }
 
-  @Put(':documentId')
-  @ApiOperation({ summary: 'Update document metadata' })
-  async updateDocument(
+  @Post()
+  @RequireRoles(GlobalRole.CA_ADMIN, GlobalRole.CA_STAFF, GlobalRole.COMPLIANCE_MANAGER)
+  @ApiOperation({ summary: 'Upload document' })
+  async uploadDocument(
     @Request() req: any,
-    @Param('documentId') documentId: string,
-    @Body() dto: UpdateDocumentDto,
+    @Body() body: { workspaceId: string; fileName: string; originalName: string; fileType: string; mimeType: string; size: number; category: string },
   ) {
-    return this.documentService.updateDocument(req.user.tenantId, req.user.id, documentId, dto);
+    return this.documentVaultService.createDocument(req.user.tenantId, req.user.id, body.workspaceId, body);
   }
 
   @Delete(':documentId')
+  @RequireRoles(GlobalRole.CA_ADMIN, GlobalRole.CA_STAFF)
   @ApiOperation({ summary: 'Delete document' })
   async deleteDocument(@Request() req: any, @Param('documentId') documentId: string) {
-    return this.documentService.deleteDocument(req.user.tenantId, req.user.id, documentId);
+    return this.documentVaultService.deleteDocument(req.user.tenantId, req.user.id, documentId);
   }
 }

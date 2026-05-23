@@ -9,6 +9,7 @@ import { AuthService } from './auth/auth.service';
 import { JwtStrategy } from './auth/strategies/jwt.strategy';
 import { LocalStrategy } from './auth/strategies/local.strategy';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RbacGuard } from './auth/guards/rbac';
 import { CorrelationIdInterceptor } from './common/interceptors/correlation-id.interceptor';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { EnvironmentValidator } from './common/environment.validator';
@@ -45,12 +46,13 @@ import { ThrottlerModule } from '@nestjs/throttler';
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: CorrelationIdInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    RbacGuard,
     { provide: APP_PIPE, useValue: new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
     }) },
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, JwtModule, RbacGuard],
 })
 export class AppModule {}

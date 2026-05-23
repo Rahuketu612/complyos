@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
 import { WorkspaceService } from './services/workspace.service';
 import { TaskService } from './services/task.service';
@@ -22,11 +23,13 @@ import { HealthController } from './controllers/health.controller';
 import { AuditService } from './services/audit.service';
 import { JwtStrategy } from './auth/strategies/jwt.strategy';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RbacGuard } from './auth/guards/rbac';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
   ],
   controllers: [
     HealthController,
@@ -52,6 +55,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AuditService,
     JwtStrategy,
     JwtAuthGuard,
+    RbacGuard,
   ],
   exports: [
     WorkspaceService,
@@ -63,6 +67,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AIComplianceService,
     CommunicationService,
     JwtAuthGuard,
+    RbacGuard,
   ],
 })
 export class CaServiceModule {}
