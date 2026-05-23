@@ -32,12 +32,12 @@ async function main() {
   // Create test user
   const passwordHash = await bcrypt.hash('password123', 10);
   const user = await prisma.user.upsert({
-    where: { tenantId_email: { tenantId: tenant.id, email: 'test@complyos.com' } },
+    where: { tenantId_email: { tenantId: tenant.id, email: 'demo@complyos.com' } },
     update: {},
     create: {
-      id: 'test-user-id',
+      id: 'user-ca-admin',
       tenantId: tenant.id,
-      email: 'test@complyos.com',
+      email: 'demo@complyos.com',
       passwordHash,
       firstName: 'Test',
       lastName: 'User',
