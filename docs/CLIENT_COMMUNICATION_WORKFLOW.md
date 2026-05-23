@@ -16,7 +16,7 @@ COMPLYOS Client Communication system enables CA firms to manage client interacti
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    CA Service (NestJS)                           │
-│  CommunicationController + CommunicationService                 │
+│  CommunicationController + CommunicationService                  │
 │  EvidenceRequest Management                                     │
 │  AI Integration for Summaries                                   │
 └─────────────────────────────────────────────────────────────────┘
@@ -29,6 +29,41 @@ COMPLYOS Client Communication system enables CA firms to manage client interacti
 │  evidence_requests                                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+## API Endpoints
+
+### Thread Management
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /api/communications` | List | Get threads with filters (workspaceId, status, type) |
+| `POST /api/communications` | Create | Create new thread |
+| `GET /api/communications/stats` | Stats | Thread statistics by status |
+| `GET /api/communications/:id` | Get | Thread with messages |
+| `PUT /api/communications/:id/status` | Update | Change thread status |
+| `PUT /api/communications/:id/assign` | Assign | Assign thread to user |
+| `GET /api/communications/:id/summary` | AI Summary | Get thread data for AI summarization |
+
+### Message Operations
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/communications/:id/messages` | Add | Add message to thread |
+| `GET /api/communications/:id/messages` | List | Get thread messages |
+
+### Evidence Management
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/communications/evidence` | Create | Create evidence request |
+| `GET /api/communications/evidence` | List | List evidence requests |
+| `PUT /api/communications/evidence/:id/status` | Update | Update evidence status |
+
+### Integrations
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/communications/from-notice/:id` | From Notice | Create thread from notice with evidence request |
 
 ## Core Entities
 
@@ -50,11 +85,11 @@ model CommunicationThread {
 
   createdBy    String
   assignedTo   String?
-  noticeId     String?  // Optional link to notice
+  noticeId     String?
   taskId       String?
   documentId   String?
 
-  aiSummary    String?  // AI-generated summary
+  aiSummary    String?
   resolvedAt   DateTime?
 
   messages     CommunicationMessage[]
@@ -74,14 +109,14 @@ model CommunicationMessage {
 
   senderId    String
   senderRole  String  // "ca", "client", "system", "ai"
-  senderName  String  // Cached for display
+  senderName  String
 
   message     String
   messageType MessageType  // TEXT, SYSTEM, DOCUMENT, AI_SUMMARY
 
   isInternalNote Boolean @default(false)  // Only visible to CA/internal
   documentId     String?
-  correlationId  String?  // Links to AIActionLog for AI calls
+  correlationId  String?
 }
 ```
 
@@ -113,40 +148,71 @@ model EvidenceRequest {
 }
 ```
 
-## API Endpoints
+## Role Visibility Rules
 
-### Thread Management
+### Internal Notes
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/communications` | List | Get threads with filters |
-| `POST /api/communications` | Create | Create new thread |
-| `GET /api/communications/stats` | Stats | Thread statistics |
-| `GET /api/communications/:id` | Get | Thread with messages |
-| `PUT /api/communications/:id/status` | Update | Change status |
-| `PUT /api/communications/:id/assign` | Assign | Assign to user |
+| Role | View Internal Notes | Create Internal Note |
+|------|--------------------|--------------------|
+| CLIENT | ❌ | ❌ |
+| CA | ✅ | ✅ |
+| ADMIN | ✅ | ✅ |
+| VIEWER | ❌ | ❌ |
 
-### Message Operations
+**Implementation:**
+- `CommunicationService.getThread()` accepts `includeInternal` parameter
+- Controller checks `req.user.role === 'CA' || req.user.role === 'ADMIN'`
+- Public API (for clients) always passes `includeInternal: false`
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/communications/:id/messages` | Add | Add message |
-| `GET /api/communications/:id/messages` | List | Get messages |
+### Message Visibility Matrix
 
-### Evidence Management
+| Message Type | CLIENT | CA | ADMIN |
+|--------------|--------|-----|-------|
+| TEXT (public) | ✅ | ✅ | ✅ |
+| TEXT (internal) | ❌ | ✅ | ✅ |
+| SYSTEM | ✅ | ✅ | ✅ |
+| DOCUMENT | ✅ | ✅ | ✅ |
+| AI_SUMMARY | ✅ | ✅ | ✅ |
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/communications/evidence` | Create | Create evidence request |
-| `GET /api/communications/evidence` | List | List evidence requests |
-| `PUT /api/communications/evidence/:id/status` | Update | Update status |
+### Evidence Requests
 
-### Integrations
+| Action | CLIENT | CA | ADMIN |
+|--------|--------|-----|-------|
+| View Requests | ✅ | ✅ | ✅ |
+| Upload Document | ❌ | ✅ | ✅ |
+| Verify/Reject | ❌ | ✅ | ✅ |
+| Create Request | ❌ | ✅ | ✅ |
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/communications/from-notice/:id` | From Notice | Create thread from notice |
-| `GET /api/communications/:id/summary` | AI Summary | Get thread summary |
+## Evidence Request Lifecycle
+
+```
+REQUESTED ──────────────┐
+    │                   │
+    │ (client uploads)  │
+    ▼                   │
+ UPLOADED               │
+    │                   │
+    ├──── (accept) ────▶│
+    │                   │
+    └──── (reject) ────▶│
+    │                   │
+    │ (re-upload)       │
+    └───────────────────┘
+         │
+         ▼
+     REJECTED
+```
+
+**Status Flow:**
+1. **REQUESTED**: CA creates document request
+2. **UPLOADED**: Client uploads document (via external system - not in v1)
+3. **VERIFIED**: CA verifies document is acceptable
+4. **REJECTED**: CA rejects with reason (can be re-requested)
+
+**Implementation Notes:**
+- Evidence requests can exist without a thread (standalone requests)
+- Linking to thread is optional but recommended
+- `updatedAt` timestamp tracks last modification
 
 ## Status Workflow
 
@@ -160,39 +226,12 @@ WAITING_CLIENT ─────────────────────�
 WAITING_INTERNAL ───────────────────┘
 ```
 
-- **OPEN**: Thread created, awaiting action
-- **WAITING_CLIENT**: Sent request to client, awaiting response
-- **WAITING_INTERNAL**: Client responded, CA working on it
-- **RESOLVED**: Matter resolved
-
-## Internal Notes
-
-Internal notes are messages marked `isInternalNote: true`:
-- Only visible to CA and ADMIN roles
-- Not visible to clients
-- Useful for:
-  - CA team discussions
-  - Strategy notes
-  - Internal review comments
-  - Compliance check reminders
-
-## Evidence Tracking
-
-### Status Flow
-
-```
-REQUESTED → UPLOADED → VERIFIED
-                ↓
-            REJECTED → REQUESTED (re-request)
-```
-
-### Operations
-
-1. **Request Document**: CA creates EvidenceRequest
-2. **Client Uploads**: Client uploads document → status = UPLOADED
-3. **CA Reviews**: 
-   - Verify if acceptable → status = VERIFIED
-   - Reject with reason → status = REJECTED (can re-request)
+| Status | Description |
+|--------|-------------|
+| OPEN | Thread created, awaiting action |
+| WAITING_CLIENT | Sent request to client, awaiting response |
+| WAITING_INTERNAL | Client responded, CA working on it |
+| RESOLVED | Matter resolved (sets `resolvedAt` timestamp) |
 
 ## Notice Integration
 
@@ -228,110 +267,156 @@ All AI-generated summaries logged to `AIActionLog` with:
 - `entityType`: `NOTICE` or `TASK`
 - `correlationId` linking message to AI call
 
+### Feature Flag
+
+AI features respect `ENABLE_AI_FEATURES` environment variable:
+- `false`: Mock responses only
+- `true`: Full AI (OpenAI, local Ollama, or mock)
+
 ## Security & RBAC
-
-### Role-Based Access
-
-| Role | View Internal Notes | Send Internal Notes | Manage Evidence |
-|------|--------------------|--------------------|----------------|
-| CLIENT | ❌ | ❌ | Upload only |
-| CA | ✅ | ✅ | Full |
-| ADMIN | ✅ | ✅ | Full |
 
 ### Tenant Isolation
 
 - All queries filtered by `tenantId`
 - Users can only access their tenant's data
-- Workspace-level access enforced
+- Cross-tenant access returns `NotFoundException`
 
-## Frontend Components
+### Workspace Access
 
-### Thread List (`/communications`)
-
-- Stats cards: total, open, waiting client, in progress, resolved, pending evidence
-- Filter by status, type, search
-- Thread cards showing:
-  - Subject, type badge
-  - Workspace, business
-  - Status badge
-  - Message count
-  - Linked notice indicator
-
-### Thread Detail (`/communications/[id]`)
-
-- **Header**: Subject, workspace, status selector
-- **Messages**: Chat-style bubbles
-  - System messages (centered, gray)
-  - Own messages (right, blue)
-  - Others' messages (left, gray)
-  - Internal notes (yellow, dashed border)
-- **Message Input**:
-  - Internal note toggle (CA only)
-  - Send button
-- **Sidebar**:
-  - Thread info
-  - Linked notice
-  - Evidence requests with status/actions
-  - AI summary
+- Users must be workspace member to access threads
+- Workspace-level access control enforced in service layer
 
 ## Seed Data
 
 ### Sample Threads
 
-1. **GST Notice Thread**
+1. **GST Notice Thread** (`thread-notice-followup-001`)
    - Type: NOTICE
    - Status: WAITING_CLIENT
    - Linked to GST Scrutiny Notice
    - Messages: CA explanation, document request, client acknowledgment
+   - Internal note visible to CA only
 
-2. **Client Follow-up**
+2. **Quarterly Review** (`thread-general-001`)
    - Type: GENERAL
-   - Status: WAITING_INTERNAL
-   - Messages: Client query, CA internal note, response
-
-3. **Internal Discussion**
-   - Type: TASK
-   - Status: RESOLVED
-   - Messages: CA internal notes only
-
-4. **Pending Document**
-   - Type: DOCUMENT_REQUEST
    - Status: OPEN
-   - Evidence request: Bank statements
+   - Messages: Client inquiry, CA internal note
 
-## Future Enhancements
+### Evidence Requests
+
+- Bank Statements FY 2024-25 (REQUESTED)
+- Purchase Invoices - Mismatch Period (REQUESTED)
+
+## Current Limitations
+
+### In Scope (v1.0)
+- ✅ Communication threads with messages
+- ✅ Internal notes (CA/ADMIN only)
+- ✅ Evidence request tracking
+- ✅ Notice integration
+- ✅ AI summary endpoint
+- ✅ Tenant isolation
+- ✅ Basic seed data
 
 ### Out of Scope (v1.0)
-
 - ❌ Real email integration
-- ❌ WhatsApp sync
+- ❌ WhatsApp/business chat sync
 - ❌ WebSocket real-time chat
 - ❌ Push notifications
-- ❌ File upload infrastructure
+- ❌ File upload infrastructure (link to existing DocumentVault)
+- ❌ Client portal view
+- ❌ Template messages
+- ❌ Scheduled reminders
+- ❌ Message reactions/emoji
+- ❌ Thread tagging/categories
+- ❌ Bulk message operations
 
-### Planned
+## Future Integrations
 
-- [ ] Email thread sync
-- [ ] Client portal view
-- [ ] Push notifications
-- [ ] Template messages
-- [ ] Scheduled reminders
+### Email Integration (Planned)
+```
+Client Email → COMPLYOS Mail Ingestion → CommunicationThread
+                                    ↓
+                           AI Classification
+                           (Notice vs General)
+                                    ↓
+                           Assign to CA/Update Status
+```
 
-## Best Practices
+**Implementation:**
+- Webhook endpoint for incoming emails
+- Email-to-thread mapping via `senderEmail` matching
+- Auto-create thread for new sender threads
 
-### For CA Firms
+### WhatsApp Integration (Planned)
+```
+WhatsApp Business API → COMPLYOS Webhook → CommunicationThread
+```
 
-1. Use internal notes for strategy and review comments
-2. Link threads to notices for traceability
-3. Request evidence early to avoid delays
-4. Update status to WAITING_CLIENT when awaiting response
-5. Use AI summaries for quick context on long threads
+**Challenges:**
+- Phone number matching to users
+- Message format normalization
+- Attachment handling
 
-### For Clients
+### Client Portal (Planned)
+- Read-only thread view for clients
+- Document upload interface
+- Response capability
+- No internal note visibility
 
-1. Upload requested documents promptly
-2. Respond to queries within due dates
-3. Check thread for updates and requests
+## Testing
+
+### Unit Tests
+- `communication.spec.ts` covers:
+  - Thread CRUD operations
+  - Internal note visibility filtering
+  - Tenant isolation enforcement
+  - Evidence request lifecycle
+  - Status management
+  - Thread stats aggregation
+
+### Test Commands
+```bash
+npm run test --workspace=apps/ca-service -- communication.spec
+```
+
+## Migration Notes
+
+### New Tables
+- `communication_threads`
+- `communication_messages`
+- `evidence_requests`
+
+### Schema Changes
+- Added `communicationThreads[]` relations to: Tenant, User, ClientWorkspace, Business, Notice, ComplianceTask, DocumentVault
+- Added `communicationMessages[]` relation to User
+- Added `evidenceRequests[]` relation to Tenant, User
+
+### Backward Compatibility
+- No breaking changes to existing APIs
+- Existing notices/tasks unaffected
+- Works with existing DocumentVault documents
+
+## Rollback Notes
+
+To rollback this feature:
+
+1. **Database**: Drop new tables (if no production data):
+   ```sql
+   DROP TABLE IF EXISTS evidence_requests;
+   DROP TABLE IF EXISTS communication_messages;
+   DROP TABLE IF EXISTS communication_threads;
+   ```
+
+2. **Remove Relations**: Remove array relations added to existing models
+
+3. **Code Removal**:
+   - Delete `communication.service.ts`
+   - Delete `communication.controller.ts`
+   - Remove from `app.module.ts`
+   - Remove frontend pages
+
+4. **Seed Data**: Re-run seed without communication data
 
 ---
 
