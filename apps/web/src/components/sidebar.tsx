@@ -22,8 +22,10 @@ import {
   Briefcase,
   ChevronDown,
   MessageSquare,
-  FileText
+  FileText,
+  CheckCircle2
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { getRoleBadgeColor, getRoleDisplayName } from "@/stores/workspace-store"
 
 // Navigation groups - cleaner organization
@@ -163,7 +165,12 @@ export function Sidebar() {
           <div className="relative">
             <button
               onClick={() => setShowWorkspaceDropdown(!showWorkspaceDropdown)}
-              className="w-full text-sm border rounded-md px-2 py-1.5 bg-background flex items-center justify-between hover:bg-accent transition-colors focus:ring-2 focus:ring-primary focus:outline-none"
+              className={cn(
+                "w-full text-sm border rounded-md px-2 py-1.5 flex items-center justify-between transition-colors focus:ring-2 focus:ring-primary focus:outline-none",
+                selectedWorkspace
+                  ? "bg-primary/5 border-primary/30"
+                  : "bg-background hover:bg-accent"
+              )}
             >
               <span className="truncate font-medium">
                 {selectedWorkspace?.name || 'Select workspace'}
@@ -184,10 +191,15 @@ export function Sidebar() {
                     })}
                     className={cn(
                       "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors",
-                      selectedWorkspace?.id === ws.id && "bg-accent font-medium"
+                      selectedWorkspace?.id === ws.id && "bg-primary/10 font-medium border-l-2 border-primary"
                     )}
                   >
-                    <div className="truncate">{ws.name}</div>
+                    <div className="flex items-center justify-between">
+                      <span className="truncate">{ws.name}</span>
+                      {selectedWorkspace?.id === ws.id && (
+                        <CheckCircle2 className="h-3 w-3 text-primary flex-shrink-0" />
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">{ws.type}</div>
                   </button>
                 ))}
@@ -195,7 +207,13 @@ export function Sidebar() {
             )}
           </div>
         ) : (
-          <div className="text-xs py-2 text-muted-foreground">No workspaces</div>
+          <div className="p-3 rounded-md border border-dashed border-slate-300 text-center">
+            <p className="text-xs text-muted-foreground mb-2">No workspaces yet</p>
+            <Button variant="outline" size="sm" onClick={() => router.push('/workspaces')} className="gap-1 text-xs">
+              <Plus className="h-3 w-3" />
+              Create Workspace
+            </Button>
+          </div>
         )}
         
         {/* Role Badge - Subtle */}

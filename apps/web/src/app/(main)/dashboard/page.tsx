@@ -10,8 +10,17 @@ import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { 
   ShieldCheck, AlertTriangle, Clock, Briefcase, Bell,
-  CheckCircle2, ArrowRight, Loader2, AlertCircle
+  CheckCircle2, ArrowRight, Loader2, AlertCircle,
+  Plus, Users, FileText, ClipboardList, ChevronDown, X
 } from "lucide-react"
+
+interface ChecklistItem {
+  id: string
+  label: string
+  href: string
+  icon: any
+  completed: boolean
+}
 
 // Types
 interface Stats {
@@ -106,15 +115,8 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [notices, setNotices] = useState<Notice[]>([])
   const [loading, setLoading] = useState(true)
-
-  const [complianceScore, setComplianceScore] = useState(85)
-  const [complianceChange, setComplianceChange] = useState(5)
-  const [gstFiled, setGstFiled] = useState(12)
-  const [gstChange, setGstChange] = useState(3)
-  const [noticesPending, setNoticesPending] = useState(2)
-  const [noticesChange, setNoticesChange] = useState(-1)
-  const [itcAtRisk, setItcAtRisk] = useState(45000)
-  const [itcChange, setItcChange] = useState(-2000)
+  const [showOnboarding, setShowOnboarding] = useState(true)
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated) { router.push("/"); return }
@@ -147,6 +149,16 @@ export default function DashboardPage() {
   // Calculate quick stats
   const completedTasks = stats.totalTasks - stats.pendingTasks - stats.overdueTasks
 
+  // Build onboarding checklist based on user activity
+  const checklistItems: ChecklistItem[] = [
+    { id: 'workspace', label: 'Create workspace', href: '/workspaces', icon: Briefcase, completed: stats.totalWorkspaces > 0 },
+    { id: 'client', label: 'Add first client', href: '/businesses', icon: Users, completed: stats.activeWorkspaces > 0 },
+    { id: 'task', label: 'Create a task', href: '/tasks', icon: ClipboardList, completed: stats.totalTasks > 0 },
+    { id: 'document', label: 'Upload document', href: '/documents', icon: FileText, completed: stats.documents > 0 },
+  ]
+  const completedCount = checklistItems.filter(i => i.completed).length
+  const allComplete = completedCount === checklistItems.length
+
   return (
     <div className="space-y-8">
       {/* Header - Clean and focused */}
@@ -164,6 +176,59 @@ export default function DashboardPage() {
           </Button>
         )}
       </div>
+
+      {/* Onboarding Checklist - Collapsible */}
+      {!allComplete && showOnboarding && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Getting Started
+              </CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowOnboarding(false)}
+                className="gap-1 text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {completedCount} of {checklistItems.length} steps complete
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {checklistItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => router.push(item.href)}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border transition-all",
+                    item.completed 
+                      ? "bg-green-50 border-green-200 text-green-700" 
+                      : "bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+                  )}
+                >
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    item.completed ? "bg-green-100" : "bg-slate-100"
+                  )}>
+                    {item.completed ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <item.icon className="h-5 w-5 text-slate-600" />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* TOP 3 PRIORITY ACTIONS - Most important first */}
       {(stats.overdueTasks > 0 || notices.length > 0) && (
