@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkspaceService } from './workspace.service';
 import { AuditService } from './audit.service';
+import { validateFileMetadata, scanFileForViruses } from '@complyos/shared';
 
 @Injectable()
 export class DocumentVaultService {
@@ -24,7 +25,26 @@ export class DocumentVaultService {
     retentionCategory?: string;
     tags?: string[];
     notes?: string;
+    fileBuffer?: Buffer; // Optional: for virus scanning
   }) {
+    // SECURITY: Validate file metadata before processing
+    const validation = validateFileMetadata(data.originalName, data.mimeType, data.size);
+    if (!validation.valid) {
+      throw new BadRequestException(`File validation failed: ${validation.errors.join('; ')}`);
+    }
+    
+    if (validation.warnings.length > 0) {
+      // Log warnings but don't block upload
+      console.warn(`File upload warnings for ${data.originalName}:`, validation.warnings);
+    }
+    
+    // SECURITY: Virus scan if file buffer provided
+    if (data.fileBuffer) {
+      const scanResult = await scanFileForViruses(data.fileBuffer, data.originalName);
+      if (!scanResult.clean) {
+        throw new BadRequestException(`Security alert: File rejected - potential threat detected`);
+      }
+    }
     // Check access
     const hasAccess = await this.workspaceService.hasWorkspaceAccess(workspaceId, userId);
     if (!hasAccess) {

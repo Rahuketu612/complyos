@@ -51,24 +51,40 @@ export const useAuthStore = create<AuthState>()(
       selectedWorkspaceName: null,
       
       // Login action
-      login: (tokens, user) => set({
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken || null,
-        user,
-        isAuthenticated: true,
-      }),
+      login: (tokens, user) => {
+        // Sync session cookie for middleware
+        if (typeof window !== 'undefined') {
+          fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessToken: tokens.accessToken, isAuthenticated: true }),
+          }).catch(console.error);
+        }
+        set({
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken || null,
+          user,
+          isAuthenticated: true,
+        })
+      },
       
       // Logout action
-      logout: () => set({
-        accessToken: null,
-        refreshToken: null,
-        user: null,
-        isAuthenticated: false,
-        selectedBusinessId: null,
-        selectedBusinessName: null,
-        selectedWorkspaceId: null,
-        selectedWorkspaceName: null,
-      }),
+      logout: () => {
+        // Clear session cookie for middleware
+        if (typeof window !== 'undefined') {
+          fetch('/api/auth/session', { method: 'DELETE' }).catch(console.error);
+        }
+        set({
+          accessToken: null,
+          refreshToken: null,
+          user: null,
+          isAuthenticated: false,
+          selectedBusinessId: null,
+          selectedBusinessName: null,
+          selectedWorkspaceId: null,
+          selectedWorkspaceName: null,
+        })
+      },
       
       // Business selection
       setSelectedBusiness: (id, name) => set({

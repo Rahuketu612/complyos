@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CorrelationIdInterceptor } from './common/interceptors/correlation-id.interceptor';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { EnvironmentValidator } from './validators/env.validator';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
   providers: [
     GstService,
     PrismaService,
+    EnvironmentValidator,
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: CorrelationIdInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
