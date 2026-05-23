@@ -403,7 +403,138 @@ async function main() {
 
   console.log('Created 4 notices (3 GST + 1 Income Tax) with activities');
 
-  console.log('Database seed completed successfully!');
+  // ============================================
+  // COMMUNICATION THREADS
+  // ============================================
+  console.log('\nCreating communication threads...');
+
+  // Thread 1: GST Notice Follow-up
+  const thread1 = await prisma.communicationThread.upsert({
+    where: { id: 'thread-notice-followup-001' },
+    update: {},
+    create: {
+      id: 'thread-notice-followup-001',
+      tenantId: tenant.id,
+      workspaceId: workspace.id,
+      businessId: business.id,
+      subject: 'GST Scrutiny Notice - Document Request',
+      type: 'NOTICE',
+      status: 'WAITING_CLIENT',
+      priority: 'HIGH',
+      createdBy: user.id,
+      assignedTo: user.id,
+      noticeId: notice1.id,
+    },
+  });
+
+  const thread1Messages = [
+    { message: 'Thread created for GST Scrutiny Notice', messageType: 'SYSTEM', isInternalNote: false, senderRole: 'system' },
+    { message: `Dear Client,\n\nWe have received a GST Scrutiny Notice (${notice1.noticeNumber}) for your business ${business.name}.\n\nThe notice alleges mismatch between GSTR-1 and GSTR-3B for FY 2024-25.\n\nPlease provide the following documents at the earliest:\n1. Bank statements (Apr 2024 - Mar 2025)\n2. Purchase invoices for the mismatch period\n3. Stock reconciliation statement\n4. GST payment challans\n\nRegards,\nCA Team`, messageType: 'TEXT', isInternalNote: false, senderRole: 'ca' },
+    { message: 'Internal note: Client has history of delayed responses. Follow up in 3 days.', messageType: 'TEXT', isInternalNote: true, senderRole: 'ca' },
+    { message: 'Thank you for the notice. We will compile the documents and send them within this week.', messageType: 'TEXT', isInternalNote: false, senderRole: 'client' },
+  ];
+
+  for (let i = 0; i < thread1Messages.length; i++) {
+    const msg = thread1Messages[i];
+    await prisma.communicationMessage.upsert({
+      where: { id: `thread1-msg-${i + 1}` },
+      update: {},
+      create: {
+        id: `thread1-msg-${i + 1}`,
+        tenantId: tenant.id,
+        threadId: thread1.id,
+        senderId: i % 2 === 0 ? user.id : 'client-user-id',
+        senderRole: msg.senderRole,
+        senderName: msg.senderRole === 'system' ? 'System' : msg.senderRole === 'ca' ? `${user.firstName} ${user.lastName}` : 'Rajesh Kumar',
+        message: msg.message,
+        messageType: msg.messageType as any,
+        isInternalNote: msg.isInternalNote,
+      },
+    });
+  }
+
+  // Thread 2: General Inquiry
+  const thread2 = await prisma.communicationThread.upsert({
+    where: { id: 'thread-general-001' },
+    update: {},
+    create: {
+      id: 'thread-general-001',
+      tenantId: tenant.id,
+      workspaceId: workspace.id,
+      businessId: business.id,
+      subject: 'Quarterly Review Meeting',
+      type: 'GENERAL',
+      status: 'OPEN',
+      priority: 'MEDIUM',
+      createdBy: user.id,
+      noticeId: null,
+    },
+  });
+
+  const thread2Messages = [
+    { message: 'Thread created for quarterly review', messageType: 'SYSTEM', isInternalNote: false, senderRole: 'system' },
+    { message: 'Hi Team,\n\nPlease schedule a quarterly review meeting for our business. We want to discuss:\n- GST compliance status\n- Upcoming deadlines\n- Tax planning for next quarter\n\nAvailable timings: Next Tuesday or Wednesday afternoon.\n\nBest,\nRajesh', messageType: 'TEXT', isInternalNote: false, senderRole: 'client' },
+    { message: 'Internal note: Client concerned about pending notices. Allocate extra time for notice review.', messageType: 'TEXT', isInternalNote: true, senderRole: 'ca' },
+  ];
+
+  for (let i = 0; i < thread2Messages.length; i++) {
+    const msg = thread2Messages[i];
+    await prisma.communicationMessage.upsert({
+      where: { id: `thread2-msg-${i + 1}` },
+      update: {},
+      create: {
+        id: `thread2-msg-${i + 1}`,
+        tenantId: tenant.id,
+        threadId: thread2.id,
+        senderId: i === 0 ? user.id : i === 1 ? 'client-user-id' : user.id,
+        senderRole: msg.senderRole,
+        senderName: msg.senderRole === 'system' ? 'System' : msg.senderRole === 'ca' ? `${user.firstName} ${user.lastName}` : 'Rajesh Kumar',
+        message: msg.message,
+        messageType: msg.messageType as any,
+        isInternalNote: msg.isInternalNote,
+      },
+    });
+  }
+
+  // Evidence Request for Thread 1
+  await prisma.evidenceRequest.upsert({
+    where: { id: 'evidence-req-001' },
+    update: {},
+    create: {
+      id: 'evidence-req-001',
+      tenantId: tenant.id,
+      threadId: thread1.id,
+      title: 'Bank Statements FY 2024-25',
+      description: 'Complete bank statements for all accounts from April 2024 to March 2025',
+      dueDate: new Date('2026-06-01'),
+      status: 'REQUESTED',
+      requesterId: user.id,
+      workspaceId: workspace.id,
+      noticeId: notice1.id,
+    },
+  });
+
+  await prisma.evidenceRequest.upsert({
+    where: { id: 'evidence-req-002' },
+    update: {},
+    create: {
+      id: 'evidence-req-002',
+      tenantId: tenant.id,
+      threadId: thread1.id,
+      title: 'Purchase Invoices - Mismatch Period',
+      description: 'Original purchase invoices for the period where mismatch was identified',
+      dueDate: new Date('2026-06-05'),
+      status: 'REQUESTED',
+      requesterId: user.id,
+      workspaceId: workspace.id,
+      noticeId: notice1.id,
+    },
+  });
+
+  console.log('Created 2 communication threads with messages');
+  console.log('Created 2 evidence requests');
+
+  console.log('\nDatabase seed completed successfully!');
   console.log('Test credentials: test@complyos.com / password123');
 }
 

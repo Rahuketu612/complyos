@@ -63,6 +63,9 @@ model Tenant {
   notices       Notice[]
   noticeActivities NoticeActivity[]
   aiActionLogs  AIActionLog[]
+  communicationThreads CommunicationThread[]
+  communicationMessages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
 
   @@map("tenants")
 }
@@ -140,6 +143,10 @@ model User {
   linkedDocuments NoticeDocument[] @relation("DocLinker")
   linkedTasks NoticeTask[] @relation("TaskLinker")
   aiActionLogs AIActionLog[]
+  createdThreads CommunicationThread[] @relation("ThreadCreator")
+  assignedThreads CommunicationThread[] @relation("ThreadAssignee")
+  messages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
 
   @@unique([tenantId, email])
   @@map("users")
@@ -301,6 +308,7 @@ model Business {
   reconciliations Reconciliation[]
   documents       Document[]
   invoices        Gstr2bInvoice[]
+  communicationThreads CommunicationThread[]
 
   @@map("businesses")
 }
@@ -1153,6 +1161,8 @@ model ClientWorkspace {
   userNotifications UserNotification[]
   notices     Notice[]
   aiActionLogs AIActionLog[]
+  communicationThreads CommunicationThread[]
+  evidenceRequests EvidenceRequest[]
 
   @@unique([firmId, businessId])
   @@map("client_workspaces")
@@ -1253,6 +1263,8 @@ model DocumentVault {
   tenant   Tenant    @relation(fields: [tenantId], references: [id])
   uploader User      @relation(fields: [uploadedBy], references: [id])
   noticeLinks NoticeDocument[]
+  communicationMessages CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
 
   @@index([workspaceId, category])
   @@index([workspaceId, uploadedBy])
@@ -1330,6 +1342,7 @@ model ComplianceTask {
   creator    User             @relation("TaskCreator", fields: [createdBy], references: [id])
   business   Business?        @relation(fields: [linkedBusinessId], references: [id])
   noticeLinks NoticeTask[]
+  communicationThreads CommunicationThread[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, dueDate])
@@ -1475,6 +1488,7 @@ model Notice {
   activities    NoticeActivity[]
   linkedDocuments NoticeDocument[]
   linkedTasks    NoticeTask[]
+  communicationThreads CommunicationThread[]
 
   @@index([workspaceId, status])
   @@index([workspaceId, severity])
@@ -1605,6 +1619,168 @@ model AIActionLog {
   @@index([entityType, entityId])
   @@index([correlationId])
   @@map("ai_action_logs")
+}
+
+// ============================================
+// CLIENT COMMUNICATION WORKFLOW
+// ============================================
+
+enum CommunicationType {
+  NOTICE
+  TASK
+  DOCUMENT_REQUEST
+  GENERAL
+  APPROVAL
+}
+
+enum ThreadStatus {
+  OPEN
+  WAITING_CLIENT
+  WAITING_INTERNAL
+  RESOLVED
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+  DOCUMENT
+  AI_SUMMARY
+}
+
+model CommunicationThread {
+  id          String @id @default(uuid())
+  tenantId    String
+  workspaceId String
+  businessId  String?
+
+  // Thread Details
+  subject      String
+  type         CommunicationType
+  status       ThreadStatus @default(OPEN)
+  priority     TaskPriority @default(MEDIUM)
+
+  // Assignment
+  createdBy    String
+  assignedTo   String?
+
+  // Context (optional links to other entities)
+  noticeId     String?
+  taskId       String?
+  documentId   String?
+
+  // Summary
+  aiSummary    String? // AI-generated summary
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  resolvedAt   DateTime?
+
+  // Relations
+  tenant       Tenant @relation(fields: [tenantId], references: [id])
+  workspace    ClientWorkspace @relation(fields: [workspaceId], references: [id])
+  business     Business? @relation(fields: [businessId], references: [id])
+  creator      User @relation("ThreadCreator", fields: [createdBy], references: [id])
+  assignee     User? @relation("ThreadAssignee", fields: [assignedTo], references: [id])
+  notice       Notice? @relation(fields: [noticeId], references: [id])
+  task         ComplianceTask? @relation(fields: [taskId], references: [id])
+  messages     CommunicationMessage[]
+  evidenceRequests EvidenceRequest[]
+
+  @@index([tenantId, workspaceId])
+  @@index([tenantId, status])
+  @@index([businessId])
+  @@index([noticeId])
+  @@index([assignedTo])
+  @@map("communication_threads")
+}
+
+model CommunicationMessage {
+  id          String @id @default(uuid())
+  tenantId    String
+  threadId    String
+
+  // Sender
+  senderId    String
+  senderRole  String // "ca", "client", "system", "ai"
+  senderName  String // Cached name for display
+
+  // Content
+  message     String
+  messageType MessageType @default(TEXT)
+
+  // Visibility
+  isInternalNote Boolean @default(false) // Only visible to CA/internal
+
+  // Document reference (if message references a document)
+  documentId  String?
+  document    DocumentVault? @relation(fields: [documentId], references: [id])
+
+  // AI
+  correlationId String? // Link to AIActionLog
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+
+  // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  thread      CommunicationThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender      User @relation(fields: [senderId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([tenantId])
+  @@map("communication_messages")
+}
+
+// Evidence Request - Track document requests from clients
+enum EvidenceStatus {
+  REQUESTED
+  UPLOADED
+  VERIFIED
+  REJECTED
+}
+
+model EvidenceRequest {
+  id          String @id @default(uuid())
+  tenantId    String
+  threadId    String?
+
+  // Request details
+  title       String
+  description String?
+  dueDate     DateTime?
+
+  // Status tracking
+  status      EvidenceStatus @default(REQUESTED)
+
+  // Evidence (linked document)
+  documentId  String?
+  uploadedAt  DateTime?
+  verifiedAt  DateTime?
+  verifiedBy  String?
+  rejectReason String?
+
+  // Context
+  requesterId String
+  workspaceId String
+  noticeId    String?
+  taskId      String?
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  thread      CommunicationThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  document    DocumentVault? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  requester   User @relation(fields: [requesterId], references: [id])
+  workspace   ClientWorkspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([tenantId, workspaceId])
+  @@index([threadId])
+  @@index([status])
+  @@map("evidence_requests")
 }
 
 // ============================================

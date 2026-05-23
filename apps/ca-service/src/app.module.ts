@@ -9,12 +9,14 @@ import { NotificationService } from './services/notification.service';
 import { NoticeService } from './services/notice.service';
 import { AIProviderService } from './services/ai-provider.service';
 import { AIComplianceService } from './services/ai-compliance.service';
+import { CommunicationService } from './services/communication.service';
 import { WorkspaceController } from './controllers/workspace.controller';
 import { TaskController } from './controllers/task.controller';
 import { DocumentVaultController } from './controllers/document-vault.controller';
 import { NotificationController } from './controllers/notification.controller';
 import { NoticeController } from './controllers/notice.controller';
 import { AIController } from './controllers/ai.controller';
+import { CommunicationController } from './controllers/communication.controller';
 import { DashboardController } from './controllers/dashboard.controller';
 import { HealthController } from './controllers/health.controller';
 import { AuditService } from './services/audit.service';
@@ -34,6 +36,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     NotificationController,
     NoticeController,
     AIController,
+    CommunicationController,
     DashboardController,
   ],
   providers: [
@@ -45,6 +48,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     NoticeService,
     AIProviderService,
     AIComplianceService,
+    CommunicationService,
     AuditService,
     JwtStrategy,
     JwtAuthGuard,
@@ -57,6 +61,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     NoticeService,
     AIProviderService,
     AIComplianceService,
+    CommunicationService,
     JwtAuthGuard,
   ],
 })

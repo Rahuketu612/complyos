@@ -21,7 +21,8 @@ import {
   Loader2,
   Plus,
   Briefcase,
-  ChevronDown
+  ChevronDown,
+  MessageSquare
 } from "lucide-react"
 import { getRoleBadgeColor, getRoleDisplayName } from "@/stores/workspace-store"
 
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/gst/returns", label: "GST Returns", icon: Receipt },
   { href: "/gst/notices", label: "GST Notices", icon: AlertCircle },
   { href: "/notices", label: "Notices", icon: AlertTriangle },
+  { href: "/communications", label: "Communications", icon: MessageSquare },
   { href: "/workspaces", label: "Workspaces", icon: Briefcase },
   { href: "/tasks", label: "Tasks", icon: AlertCircle },
   { href: "/documents", label: "Documents", icon: Users },
