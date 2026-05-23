@@ -44,21 +44,21 @@ interface NoticeStats {
   highSeverity: number
 }
 
-// Status helpers
-const statusConfig: Record<string, { label: string; bg: string; text: string; icon: any }> = {
-  RECEIVED: { label: "Received", bg: "bg-blue-100", text: "text-blue-800", icon: FileText },
-  UNDER_REVIEW: { label: "Under Review", bg: "bg-yellow-100", text: "text-yellow-800", icon: AlertTriangle },
-  CLIENT_PENDING: { label: "Client Pending", bg: "bg-orange-100", text: "text-orange-800", icon: Clock },
-  DRAFT_PREPARED: { label: "Draft Prepared", bg: "bg-purple-100", text: "text-purple-800", icon: FileText },
-  RESPONSE_FILED: { label: "Response Filed", bg: "bg-green-100", text: "text-green-800", icon: CheckCircle2 },
-  CLOSED: { label: "Closed", bg: "bg-gray-100", text: "text-gray-800", icon: CheckCircle2 },
+// Status helpers - simplified workflow with next action
+const statusConfig: Record<string, { label: string; bg: string; text: string; icon: any; nextAction: string }> = {
+  RECEIVED: { label: "Received", bg: "bg-blue-100", text: "text-blue-800", icon: FileText, nextAction: "Start Review" },
+  UNDER_REVIEW: { label: "Under Review", bg: "bg-yellow-100", text: "text-yellow-800", icon: AlertTriangle, nextAction: "Prepare" },
+  CLIENT_PENDING: { label: "Awaiting", bg: "bg-orange-100", text: "text-orange-800", icon: Clock, nextAction: "Follow Up" },
+  DRAFT_PREPARED: { label: "Draft Ready", bg: "bg-purple-100", text: "text-purple-800", icon: FileText, nextAction: "Submit" },
+  RESPONSE_FILED: { label: "Filed", bg: "bg-green-100", text: "text-green-800", icon: CheckCircle2, nextAction: "Monitor" },
+  CLOSED: { label: "Closed", bg: "bg-gray-100", text: "text-gray-800", icon: CheckCircle2, nextAction: "Archived" },
 }
 
 const severityConfig: Record<string, { bg: string; text: string; border: string }> = {
-  LOW: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
-  MEDIUM: { bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200" },
-  HIGH: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200" },
-  CRITICAL: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+  LOW: { bg: "bg-blue-50", text: "text-blue-700", border: "border-l-4 border-l-blue-400" },
+  MEDIUM: { bg: "bg-yellow-50", text: "text-yellow-700", border: "border-l-4 border-l-yellow-400" },
+  HIGH: { bg: "bg-orange-50", text: "text-orange-700", border: "border-l-4 border-l-orange-400" },
+  CRITICAL: { bg: "bg-red-50", text: "text-red-700", border: "border-l-4 border-l-red-500" },
 }
 
 const noticeTypeLabels: Record<string, string> = {
@@ -152,68 +152,30 @@ export default function NoticesPage() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <div className="p-4 rounded-lg border border-border bg-card cursor-pointer hover:bg-accent/50" onClick={() => setFilters({ ...filters, status: "" })}>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold">{stats.total}</div>
-              <div className="text-sm text-muted-foreground">Total</div>
-            </div>
-            <FileText className="h-6 w-6 text-muted-foreground" />
-          </div>
-        </div>
-        <div className="p-4 rounded-lg border border-red-200 bg-red-50/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
-              <div className="text-sm text-muted-foreground">Overdue</div>
-            </div>
-            <AlertCircle className="h-6 w-6 text-red-500" />
-          </div>
-        </div>
-        <div className="p-4 rounded-lg border border-orange-200 bg-orange-50/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-orange-600">{stats.dueThisWeek}</div>
-              <div className="text-sm text-muted-foreground">Due This Week</div>
-            </div>
-            <Clock className="h-6 w-6 text-orange-500" />
-          </div>
-        </div>
-        <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-purple-600">{stats.highSeverity}</div>
-              <div className="text-sm text-muted-foreground">High/Critical</div>
-            </div>
-            <AlertTriangle className="h-6 w-6 text-purple-500" />
-          </div>
-        </div>
-        <div className="p-4 rounded-lg border border-green-200 bg-green-50/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-green-600">{stats.byStatus?.RESPONSE_FILED || 0}</div>
-              <div className="text-sm text-muted-foreground">Filed</div>
-            </div>
-            <CheckCircle2 className="h-6 w-6 text-green-500" />
-          </div>
-        </div>
-        <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{stats.byStatus?.UNDER_REVIEW || 0}</div>
-              <div className="text-sm text-muted-foreground">In Progress</div>
-            </div>
-            <RefreshCw className="h-6 w-6 text-blue-500" />
-          </div>
-        </div>
+      {/* Stats Cards - Quick Filters */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <button className="p-4 rounded-lg border bg-card text-left hover:bg-accent/50 transition-colors w-full focus:ring-2 focus:ring-primary focus:outline-none" onClick={() => setFilters({ ...filters, status: "" })}>
+          <div className="text-2xl font-bold">{stats.total}</div>
+          <div className="text-sm text-muted-foreground">Total Notices</div>
+        </button>
+        <button className={cn("p-4 rounded-lg border bg-card text-left hover:bg-accent/50 transition-colors w-full focus:ring-2 focus:ring-primary focus:outline-none", stats.overdue > 0 && "border-red-200 bg-red-50/50")} onClick={() => {}}>
+          <div className={cn("text-2xl font-bold", stats.overdue > 0 && "text-red-600")}>{stats.overdue}</div>
+          <div className="text-sm text-muted-foreground">Overdue</div>
+        </button>
+        <button className={cn("p-4 rounded-lg border bg-card text-left hover:bg-accent/50 transition-colors w-full focus:ring-2 focus:ring-primary focus:outline-none", stats.dueThisWeek > 0 && "border-orange-200 bg-orange-50/50")}>
+          <div className={cn("text-2xl font-bold", stats.dueThisWeek > 0 && "text-orange-600")}>{stats.dueThisWeek}</div>
+          <div className="text-sm text-muted-foreground">Due This Week</div>
+        </button>
+        <button className={cn("p-4 rounded-lg border bg-card text-left hover:bg-accent/50 transition-colors w-full focus:ring-2 focus:ring-primary focus:outline-none", stats.highSeverity > 0 && "border-purple-200 bg-purple-50/50")}>
+          <div className={cn("text-2xl font-bold", stats.highSeverity > 0 && "text-purple-600")}>{stats.highSeverity}</div>
+          <div className="text-sm text-muted-foreground">High Severity</div>
+        </button>
       </div>
 
       {/* Filter Bar */}
       <Card>
         <CardContent className="pt-4">
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -288,116 +250,120 @@ export default function NoticesPage() {
         </CardContent>
       </Card>
 
-      {/* Notices List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            All Notices
-            <span className="ml-2 text-sm font-normal text-muted-foreground">({filteredNotices.length})</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredNotices.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-medium mb-2">
-                {hasActiveFilters ? "No notices match your filters" : "No notices yet"}
+      {/* Notices List - Card Based */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">
+          {hasActiveFilters ? `Results (${filteredNotices.length})` : `Notices (${filteredNotices.length})`}
+        </h2>
+        
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredNotices.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-3" />
+              <h3 className="font-medium mb-1">
+                {hasActiveFilters ? "No matching notices" : "No notices"}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {hasActiveFilters ? "Try adjusting your filters" : "Notices will appear here when added"}
+                {hasActiveFilters ? "Try adjusting your filters" : "You're all caught up!"}
               </p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {filteredNotices.map((notice) => {
-                const status = statusConfig[notice.status] || statusConfig.RECEIVED
-                const severity = severityConfig[notice.severity] || severityConfig.LOW
-                const isOverdue = notice.responseDueDate && new Date(notice.responseDueDate) < new Date()
-                const StatusIcon = status.icon
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredNotices.map((notice) => {
+              const status = statusConfig[notice.status] || statusConfig.RECEIVED
+              const severity = severityConfig[notice.severity] || severityConfig.LOW
+              const responseDate = notice.responseDueDate ? new Date(notice.responseDueDate) : null
+              const now = new Date()
+              const daysLeft = responseDate ? Math.ceil((responseDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
+              const isOverdue = daysLeft !== null && daysLeft < 0
+              const liability = notice.totalLiability || notice.demandAmount || 0
+              const liabilityDisplay = liability > 0 ? `₹${(liability / 100000).toFixed(1)}L` : null
 
-                return (
-                  <div
-                    key={notice.id}
-                    className={cn(
-                      "p-4 hover:bg-accent/50 transition-colors cursor-pointer border-l-4",
-                      severity.border
-                    )}
-                    onClick={() => router.push(`/notices/${notice.id}`)}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <StatusIcon className={cn("h-4 w-4", status.text.replace("text-", "text-"))} />
-                          <span className="font-medium text-sm">{notice.subject}</span>
-                          {isOverdue && (
-                            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">
-                              OVERDUE
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          {notice.noticeNumber && (
-                            <span className="font-mono">{notice.noticeNumber}</span>
-                          )}
-                          <span>{noticeTypeLabels[notice.noticeType] || notice.noticeType}</span>
-                          {notice.assessmentYear && <span>AY: {notice.assessmentYear}</span>}
-                        </div>
+              return (
+                <div
+                  key={notice.id}
+                  className={cn(
+                    "p-4 rounded-lg border bg-card hover:shadow-md transition-all cursor-pointer",
+                    severity.border
+                  )}
+                  onClick={() => router.push(`/notices/${notice.id}`)}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn("px-2 py-0.5 rounded text-xs font-semibold uppercase", severity.bg, severity.text)}>
+                          {notice.severity}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {noticeTypeLabels[notice.noticeType] || notice.noticeType}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          {notice.totalLiability && notice.totalLiability > 0 ? (
-                            <>
-                              <div className="text-sm font-semibold">₹{(notice.totalLiability / 100000).toFixed(2)}L</div>
-                              <div className="text-xs text-muted-foreground">Liability</div>
-                            </>
-                          ) : (
-                            <div className="text-sm text-muted-foreground">No demand</div>
-                          )}
-                        </div>
-                        {notice.responseDueDate && (
-                          <div className={cn(
-                            "text-right text-sm",
-                            isOverdue ? "text-red-600" : "text-muted-foreground"
-                          )}>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              Due {new Date(notice.responseDueDate).toLocaleDateString()}
-                            </div>
-                            {isOverdue && (
-                              <div className="text-xs font-medium">
-                                {Math.ceil((new Date().getTime() - new Date(notice.responseDueDate).getTime()) / (1000 * 60 * 60 * 24))}d overdue
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <span className={cn("px-2 py-0.5 rounded text-xs font-medium", status.bg, status.text)}>
-                            {status.label}
-                          </span>
-                          <span className={cn("px-2 py-0.5 rounded text-xs font-medium uppercase", severity.bg, severity.text)}>
-                            {notice.severity}
-                          </span>
-                        </div>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                      <h3 className="font-semibold text-sm mt-1 line-clamp-2">{notice.subject}</h3>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  </div>
+
+                  {/* Financial Impact */}
+                  {liabilityDisplay && (
+                    <div className={cn(
+                      "p-3 rounded-lg mb-3",
+                      liability > 10000000 ? "bg-red-50 border border-red-200" : "bg-orange-50 border border-orange-200"
+                    )}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Financial Impact</span>
+                        <span className={cn("text-lg font-bold", liability > 10000000 ? "text-red-600" : "text-orange-600")}>
+                          {liabilityDisplay}
+                        </span>
                       </div>
                     </div>
-                    {notice.workspace && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {notice.workspace.firm?.name} / {notice.workspace.name}
-                        {notice.business && ` • ${notice.business.name}`}
+                  )}
+
+                  {/* Due Date */}
+                  {daysLeft !== null && responseDate && (
+                    <div className={cn(
+                      "flex items-center justify-between p-2 rounded-md mb-3",
+                      isOverdue ? "bg-red-50 text-red-700" : daysLeft <= 7 ? "bg-orange-50 text-orange-700" : "bg-muted/50 text-muted-foreground"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          {isOverdue ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? "Due today" : `${daysLeft}d left`}
+                        </span>
                       </div>
-                    )}
+                      <span className="text-xs">{responseDate.toLocaleDateString()}</span>
+                    </div>
+                  )}
+
+                  {/* Status & Next Action */}
+                  <div className="flex items-center justify-between">
+                    <span className={cn("px-2 py-0.5 rounded text-xs font-medium", status.bg, status.text)}>
+                      {status.label}
+                    </span>
+                    <div className="flex items-center gap-2 text-xs text-primary">
+                      <span className="font-medium">{status.nextAction}</span>
+                      <ChevronRight className="h-3 w-3" />
+                    </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+                  {/* Meta */}
+                  {notice.workspace && (
+                    <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                      {notice.workspace.firm?.name || 'Unknown'} • {notice.workspace.name}
+                      {notice.business && ` • ${notice.business.name}`}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
